@@ -214,6 +214,7 @@ private fun MusicPlayerApp(
     var lyricsText by remember { mutableStateOf("") }
     val lyricsKey = selected?.let { "lyrics_${it.id}" } ?: player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { "lyrics_$it" } ?: "lyrics_empty"
     LaunchedEffect(lyricsKey) { lyricsText = preferences.getString(lyricsKey, "") ?: "" }
+    var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
     LaunchedEffect(Unit) {
         lyricsEnabled = preferences.getBoolean("lyrics_enabled", true)
         spectrumStyle = runCatching { SpectrumStyle.valueOf(preferences.getString("spectrum_style", "WAVE") ?: "WAVE") }.getOrDefault(SpectrumStyle.WAVE)
@@ -222,7 +223,6 @@ private fun MusicPlayerApp(
     var liveMetadata by remember { mutableStateOf<androidx.media3.common.MediaMetadata?>(null) }
     var spectrum by remember { mutableStateOf(List(28) { 0.025f }) }
     var spectrumStatus by remember { mutableStateOf("Putar lagu untuk membaca spektrum audio.") }
-    var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
     var eqEnabled by remember { mutableStateOf(false) }
     var eqLevels by remember { mutableStateOf(List(12) { 0f }) }
     var subEnabled by remember { mutableStateOf(false) }
