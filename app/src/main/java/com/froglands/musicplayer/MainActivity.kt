@@ -34,6 +34,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -202,7 +205,19 @@ private fun MusicPlayerApp(
     var playing by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var onlineUrl by remember { mutableStateOf("") }
-    var screen by remember { mutableStateOf(Screen.LIBRARY) }
+    var screen by rememberSaveable { mutableStateOf(Screen.LIBRARY) }
+    var libraryScrollIndex by rememberSaveable { mutableIntStateOf(0) }
+    var libraryScrollOffset by rememberSaveable { mutableIntStateOf(0) }
+    var lyricsEnabled by rememberSaveable { mutableStateOf(true) }
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    val preferences = remember { appContext.getSharedPreferences("music_player_preferences", android.content.Context.MODE_PRIVATE) }
+    var lyricsText by remember { mutableStateOf("") }
+    val lyricsKey = selected?.let { "lyrics_${it.id}" } ?: player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { "lyrics_$it" } ?: "lyrics_empty"
+    LaunchedEffect(lyricsKey) { lyricsText = preferences.getString(lyricsKey, "") ?: "" }
+    LaunchedEffect(Unit) {
+        lyricsEnabled = preferences.getBoolean("lyrics_enabled", true)
+        spectrumStyle = runCatching { SpectrumStyle.valueOf(preferences.getString("spectrum_style", "WAVE") ?: "WAVE") }.getOrDefault(SpectrumStyle.WAVE)
+    }
     var audioSessionId by remember { mutableIntStateOf(0) }
     var liveMetadata by remember { mutableStateOf<androidx.media3.common.MediaMetadata?>(null) }
     var spectrum by remember { mutableStateOf(List(28) { 0.025f }) }
@@ -386,7 +401,12 @@ private fun MusicPlayerApp(
                                     Text("${tracks.size} lagu ditemukan", color = Muted, fontSize = 12.sp)
                                     TextButton(onClick = { tracks = emptyList() }) { Text("Muat ulang", color = Mint) }
                                 }
-                                LazyColumn(contentPadding = PaddingValues(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                val libraryListState = rememberLazyListState(initialFirstVisibleItemIndex = libraryScrollIndex, initialFirstVisibleItemScrollOffset = libraryScrollOffset)
+                                LaunchedEffect(libraryListState) {
+                                    snapshotFlow { libraryListState.firstVisibleItemIndex to libraryListState.firstVisibleItemScrollOffset }
+                                        .collect { (index, offset) -> libraryScrollIndex = index; libraryScrollOffset = offset }
+                                }
+                                LazyColumn(state = libraryListState, contentPadding = PaddingValues(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                                     items(tracks.filter { it.title.contains(search, true) || it.artist.contains(search, true) }, key = { it.id }) { track ->
                                         TrackRow(track, selected?.id == track.id, onClick = {
                                             selected = track
@@ -430,6 +450,8 @@ private fun MusicPlayerApp(
                     Screen.PLAYER -> FullPlayer(
                         track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, spectrumStyle = spectrumStyle, metadata = liveMetadata,
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
+                        lyricsEnabled = lyricsEnabled, lyricsText = lyricsText,
+                        onLyricsChange = { lyricsText = it; preferences.edit().putString(lyricsKey, it).apply() },
                         onBack = { screen = Screen.LIBRARY }, onEqualizer = { screen = Screen.EQUALIZER },
                         onPrevious = {
                             val index = tracks.indexOfFirst { it.id == selected?.id }
@@ -445,7 +467,11 @@ private fun MusicPlayerApp(
                         subEnabled = subEnabled, onSubEnabled = { subEnabled = it }, subGain = subGain, onSubGain = { subGain = it },
                         subFrequency = subFrequency, onSubFrequency = { subFrequency = it }, status = eqStatus, onBack = { screen = Screen.PLAYER }
                     )
-                    Screen.SETTINGS -> SettingsScreen(spectrum, spectrumStyle) { spectrumStyle = it }
+                    Screen.SETTINGS -> SettingsScreen(spectrum, spectrumStyle,
+                        onStyleSelected = { style -> spectrumStyle = style; preferences.edit().putString("spectrum_style", style.name).apply() },
+                        lyricsEnabled = lyricsEnabled,
+                        onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() }
+                    )
                 }
             }
 
@@ -520,7 +546,8 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 private fun FullPlayer(
     track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
     hasRecordPermission: Boolean, requestRecordPermission: () -> Unit, onBack: () -> Unit, onEqualizer: () -> Unit,
-    onPrevious: () -> Unit, onNext: () -> Unit
+    onPrevious: () -> Unit, onNext: () -> Unit,
+    lyricsEnabled: Boolean, lyricsText: String, onLyricsChange: (String) -> Unit
 ) {
     var position by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -538,8 +565,14 @@ private fun FullPlayer(
             IconButton(onClick = onEqualizer) { Icon(Icons.Default.Equalizer, null, tint = Mint) }
         }
         Spacer(Modifier.height(12.dp))
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp)).background(Brush.linearGradient(listOf(Color(0xFF29465A), Color(0xFF17263D)))).border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(30.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
-            AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri, modifier = Modifier.size(238.dp).clip(RoundedCornerShape(24.dp)).border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(24.dp)))
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+            val coverSize = maxWidth.coerceAtMost(300.dp)
+            Box(Modifier.size(coverSize).clip(RoundedCornerShape(28.dp))
+                .background(Brush.linearGradient(listOf(Color(0xAA42677A), Color(0xAA17263D))))
+                .border(1.dp, Color.White.copy(alpha = .20f), RoundedCornerShape(28.dp)).padding(9.dp)) {
+                AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri,
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(21.dp)))
+            }
         }
         Spacer(Modifier.height(24.dp))
         Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -571,6 +604,24 @@ private fun FullPlayer(
         Spacer(Modifier.height(12.dp))
         OutlinedButton(onClick = onEqualizer, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Mint)) {
             Icon(Icons.Default.Equalizer, null); Spacer(Modifier.width(8.dp)); Text("12-Band Equalizer + Subwoofer")
+        }
+        if (lyricsEnabled) {
+            Spacer(Modifier.height(16.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                .background(Color.White.copy(alpha = .055f))
+                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp)).padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Lyrics, null, tint = Mint)
+                    Spacer(Modifier.width(8.dp))
+                    Text("LYRICS", color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
+                    Text("Tersimpan otomatis", color = Muted, fontSize = 10.sp)
+                }
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(value = lyricsText, onValueChange = onLyricsChange, modifier = Modifier.fillMaxWidth().heightIn(min = 110.dp),
+                    placeholder = { Text("Tempel atau tulis lirik lagu di sini…", color = Muted) },
+                    colors = fieldColors(), shape = RoundedCornerShape(14.dp), minLines = 4)
+                Text("Lirik disimpan per lagu di perangkat. Isi manual; aplikasi tidak mengambil lirik berhak cipta dari sumber tidak resmi.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+            }
         }
     }
 }
@@ -771,7 +822,7 @@ private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
 }
 
 @Composable
-private fun SettingsScreen(spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit) {
+private fun SettingsScreen(spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit, lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
         Text("PENGATURAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(Modifier.height(5.dp))
@@ -803,6 +854,16 @@ private fun SettingsScreen(spectrum: List<Float>, selectedStyle: SpectrumStyle, 
             Spacer(Modifier.height(10.dp))
         }
         Text("Pilihan langsung diterapkan ke pemutar. Spektrum membaca FFT dari output audio, bukan mikrofon.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        Spacer(Modifier.height(22.dp))
+        Divider(color = Color.White.copy(alpha = .12f))
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f)) {
+                Text("Tampilkan lirik", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Tampilkan panel lirik di Now Playing", color = Muted, fontSize = 11.sp)
+            }
+            Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
+        }
         Spacer(Modifier.height(20.dp))
     }
 }
