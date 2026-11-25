@@ -609,6 +609,60 @@ private fun SpectrumWave(levels: List<Float>, modifier: Modifier = Modifier) {
     }
 }
 
+
+@Composable
+private fun SpectrumRenderer(levels: List<Float>, style: SpectrumStyle, modifier: Modifier = Modifier) {
+    when (style) {
+        SpectrumStyle.WAVE -> SpectrumWave(levels, modifier)
+        SpectrumStyle.BARS -> SpectrumBarsPremium(levels, modifier, false)
+        SpectrumStyle.MIRROR -> SpectrumBarsPremium(levels, modifier, true)
+        SpectrumStyle.CIRCULAR -> SpectrumCircular(levels, modifier)
+    }
+}
+
+@Composable
+private fun SpectrumBarsPremium(levels: List<Float>, modifier: Modifier, mirrored: Boolean) {
+    val values = levels.mapIndexed { i, v ->
+        animateFloatAsState(v.coerceIn(.02f, 1f), tween(90, easing = FastOutSlowInEasing), label = "bar-$i").value
+    }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val gap = 3.dp.toPx()
+        val barW = ((size.width - gap * (values.size - 1)) / values.size).coerceAtLeast(1f)
+        values.forEachIndexed { i, v ->
+            val h = (v * size.height * (if (mirrored) .42f else .88f)).coerceAtLeast(3.dp.toPx())
+            val x = i * (barW + gap)
+            val y = if (mirrored) (size.height - h) / 2f else size.height - h
+            drawRoundRect(Mint.copy(alpha = .12f), androidx.compose.ui.geometry.Offset(x - 1.dp.toPx(), y - 2.dp.toPx()), androidx.compose.ui.geometry.Size(barW + 2.dp.toPx(), h + 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(barW, barW))
+            drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFE8FFF9), Mint, Color(0xFF25A99B))), androidx.compose.ui.geometry.Offset(x, y), androidx.compose.ui.geometry.Size(barW, h), androidx.compose.ui.geometry.CornerRadius(barW, barW))
+        }
+    }
+}
+
+@Composable
+private fun SpectrumCircular(levels: List<Float>, modifier: Modifier) {
+    val values = levels.mapIndexed { i, v ->
+        animateFloatAsState(v.coerceIn(.02f, 1f), tween(100, easing = FastOutSlowInEasing), label = "radial-$i").value
+    }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+        val base = size.minDimension * .22f
+        val maxBar = size.minDimension * .22f
+        val stroke = 3.dp.toPx()
+        values.forEachIndexed { i, v ->
+            val angle = (i.toFloat() / values.size) * (2f * PI.toFloat()) - PI.toFloat() / 2f
+            val inner = base
+            val outer = base + maxBar * v
+            val start = androidx.compose.ui.geometry.Offset(center.x + cos(angle) * inner, center.y + sin(angle) * inner)
+            val end = androidx.compose.ui.geometry.Offset(center.x + cos(angle) * outer, center.y + sin(angle) * outer)
+            drawLine(Mint.copy(alpha = .18f), start, end, strokeWidth = stroke + 4.dp.toPx(), cap = StrokeCap.Round)
+            drawLine(Mint, start, end, strokeWidth = stroke, cap = StrokeCap.Round)
+        }
+        drawCircle(Color.White.copy(alpha = .08f), radius = base - 5.dp.toPx(), center = center, style = Stroke(width = 1.dp.toPx()))
+        drawCircle(Mint.copy(alpha = .75f), radius = 3.dp.toPx(), center = center)
+    }
+}
 @Composable
 private fun EqualizerScreen(
     enabled: Boolean, onEnabled: (Boolean) -> Unit, levels: List<Float>, onLevel: (Int, Float) -> Unit,
@@ -628,31 +682,25 @@ private fun EqualizerScreen(
             Switch(checked = enabled, onCheckedChange = onEnabled)
         }
         Spacer(Modifier.height(14.dp))
-        Column(
+        Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
                 .background(Brush.linearGradient(listOf(Color(0xAA263B52), Color(0x88202D43))))
                 .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(24.dp))
-                .padding(horizontal = 10.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+                .padding(vertical = 16.dp)
         ) {
-            (0..1).forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                    (0..5).forEach { col ->
-                        val index = row * 6 + col
-                        val value = levels[index]
-                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = if (value > 0f) "+%.1f".format(value) else "%.1f".format(value),
-                                color = if (enabled) Mint else Muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(Modifier.height(7.dp))
-                            VerticalEqFader(
-                                value = value, enabled = enabled, onValue = { onLevel(index, it) },
-                                modifier = Modifier.height(132.dp).width(38.dp)
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(FrequencyLabels[index], color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                        }
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                levels.forEachIndexed { index, value ->
+                    Column(Modifier.width(42.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (value > 0f) "+%.1f".format(value) else "%.1f".format(value),
+                            color = if (enabled) Mint else Muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        VerticalEqFader(value, enabled, { onLevel(index, it) }, Modifier.height(164.dp).width(42.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text(FrequencyLabels[index], color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
