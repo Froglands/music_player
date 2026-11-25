@@ -38,7 +38,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.media3.common.AudioListener
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -149,9 +148,12 @@ private fun MusicPlayerApp(
 
     LaunchedEffect(hasPermission) { if (hasPermission) tracks = loadTracks() }
 
+    val updateAudioSessionId = rememberUpdatedState<(Int) -> Unit> { id -> audioSessionId = id }
+
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+            override fun onAudioSessionIdChanged(audioSessionId: Int) { updateAudioSessionId.value(audioSessionId) }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (mediaItem != null) {
                     val uri = mediaItem.localConfiguration?.uri
@@ -159,15 +161,8 @@ private fun MusicPlayerApp(
                 }
             }
         }
-        val audioListener = object : AudioListener {
-            override fun onAudioSessionIdChanged(id: Int) { audioSessionId = id }
-        }
         player.addListener(listener)
-        player.addAudioListener(audioListener)
-        onDispose {
-            player.removeListener(listener)
-            player.removeAudioListener(audioListener)
-        }
+        onDispose { player.removeListener(listener) }
     }
 
     // The spectrum is tapped from this player's audio session (not the microphone).
