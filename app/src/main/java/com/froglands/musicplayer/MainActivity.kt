@@ -1,6 +1,8 @@
 package com.froglands.musicplayer
 
 import android.Manifest
+import android.app.PendingIntent
+import android.content.Intent
 import android.content.ContentUris
 import android.graphics.BitmapFactory
 import android.content.pm.PackageManager
@@ -58,6 +60,9 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaMetadata
+import androidx.media3.session.MediaSession
+import androidx.media3.ui.PlayerNotificationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -77,8 +82,11 @@ private enum class SpectrumStyle(val title: String, val description: String) { W
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
+    private lateinit var mediaSession: MediaSession
+    private lateinit var notificationManager: PlayerNotificationManager
     private var permissionGranted by mutableStateOf(false)
     private var recordPermission by mutableStateOf(false)
+    private var notificationPermission by mutableStateOf(false)
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         permissionGranted = it
@@ -86,13 +94,48 @@ class MainActivity : ComponentActivity() {
     private val recordPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         recordPermission = it
     }
+    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        notificationPermission = it
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         player = ExoPlayer.Builder(this).build()
+        mediaSession = MediaSession.Builder(this, player).build()
+        notificationManager = PlayerNotificationManager.Builder(this, 1001, "music_playback")
+            .setChannelNameResourceId(android.R.string.untitled)
+            .setMediaDescriptionAdapter(object : PlayerNotificationManager.MediaDescriptionAdapter {
+                override fun getCurrentContentTitle(player: Player): CharSequence =
+                    player.mediaMetadata.title ?: player.currentMediaItem?.localConfiguration?.uri?.lastPathSegment ?: "Music Player"
+                override fun getCurrentContentText(player: Player): CharSequence? =
+                    player.mediaMetadata.artist ?: player.mediaMetadata.albumTitle ?: "Now playing"
+                override fun createCurrentContentIntent(player: Player): PendingIntent? {
+                    val intent = Intent(this@MainActivity, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    return PendingIntent.getActivity(this@MainActivity, 0, intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                }
+                override fun getCurrentLargeIcon(player: Player, callback: PlayerNotificationManager.BitmapCallback): android.graphics.Bitmap? {
+                    val data = player.mediaMetadata.artworkData ?: return null
+                    return BitmapFactory.decodeByteArray(data, 0, data.size)
+                }
+            })
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .build()
+        notificationManager.setMediaSessionToken(mediaSession.platformToken)
+        notificationManager.setUseNextAction(true)
+        notificationManager.setUsePreviousAction(true)
+        notificationManager.setUsePlayPauseActions(true)
+        notificationManager.setPlayer(player)
         val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
         permissionGranted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
         recordPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        notificationPermission = Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        if (Build.VERSION.SDK_INT >= 33 && !notificationPermission) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         if (!permissionGranted) permissionLauncher.launch(permission)
 
         setContent {
@@ -138,6 +181,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        notificationManager.setPlayer(null)
+        mediaSession.release()
         player.release()
         super.onDestroy()
     }
@@ -345,7 +390,12 @@ private fun MusicPlayerApp(
                                     items(tracks.filter { it.title.contains(search, true) || it.artist.contains(search, true) }, key = { it.id }) { track ->
                                         TrackRow(track, selected?.id == track.id, onClick = {
                                             selected = track
-                                            player.setMediaItem(MediaItem.fromUri(track.uri)); player.prepare(); player.play()
+                                            player.setMediaItems(tracks.map { item ->
+                                                MediaItem.Builder().setUri(item.uri).setMediaMetadata(
+                                                    MediaMetadata.Builder().setTitle(item.title).setArtist(item.artist)
+                                                        .setAlbumTitle(item.album).build()
+                                                ).build()
+                                            }, tracks.indexOf(track), 0L); player.prepare(); player.play()
                                             screen = Screen.PLAYER
                                         })
                                     }
@@ -365,7 +415,9 @@ private fun MusicPlayerApp(
                                 val url = onlineUrl.trim()
                                 if (url.startsWith("https://")) {
                                     selected = null
-                                    player.setMediaItem(MediaItem.fromUri(url)); player.prepare(); player.play()
+                                    player.setMediaItem(MediaItem.Builder().setUri(url).setMediaMetadata(
+                                        MediaMetadata.Builder().setTitle(url.substringAfterLast('/').substringBefore('?').ifBlank { "Online stream" }).build()
+                                    ).build()); player.prepare(); player.play()
                                     screen = Screen.PLAYER
                                 }
                             }, enabled = onlineUrl.startsWith("https://"), colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Ink), shape = RoundedCornerShape(14.dp)) {
@@ -381,11 +433,11 @@ private fun MusicPlayerApp(
                         onBack = { screen = Screen.LIBRARY }, onEqualizer = { screen = Screen.EQUALIZER },
                         onPrevious = {
                             val index = tracks.indexOfFirst { it.id == selected?.id }
-                            if (index > 0) { selected = tracks[index - 1]; player.setMediaItem(MediaItem.fromUri(tracks[index - 1].uri)); player.prepare(); player.play() }
+                            if (index > 0) player.seekToPreviousMediaItem()
                         },
                         onNext = {
                             val index = tracks.indexOfFirst { it.id == selected?.id }
-                            if (index >= 0 && index < tracks.lastIndex) { selected = tracks[index + 1]; player.setMediaItem(MediaItem.fromUri(tracks[index + 1].uri)); player.prepare(); player.play() }
+                            if (index >= 0 && index < tracks.lastIndex) player.seekToNextMediaItem()
                         }
                     )
                     Screen.EQUALIZER -> EqualizerScreen(
