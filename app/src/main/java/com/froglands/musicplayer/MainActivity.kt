@@ -674,6 +674,8 @@ private fun VerticalEqFader(
     val minValue = -15f
     val maxValue = 15f
     val fraction = ((value - minValue) / (maxValue - minValue)).coerceIn(0f, 1f)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val faderHeightPx = with(density) { 132.dp.toPx() }
     val trackColor = if (enabled) Color.White.copy(alpha = .18f) else Color.White.copy(alpha = .08f)
     val activeColor = if (enabled) Mint else Muted.copy(alpha = .55f)
     val updateFromY: (Float, Float) -> Unit = { y, height ->
@@ -692,7 +694,7 @@ private fun VerticalEqFader(
                 enabled = enabled,
                 reverseDirection = false,
                 state = rememberDraggableState { delta ->
-                    val next = (value - delta / size.height * (maxValue - minValue)).coerceIn(minValue, maxValue)
+                    val next = (value - delta / faderHeightPx * (maxValue - minValue)).coerceIn(minValue, maxValue)
                     onValue(next)
                 }
             )
