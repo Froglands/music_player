@@ -15,8 +15,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -444,14 +448,14 @@ private fun FullPlayer(
             delay(400)
         }
     }
-    Column(Modifier.fillMaxSize().padding(horizontal = 22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().padding(10.dp).clip(RoundedCornerShape(34.dp))\n        .background(Brush.linearGradient(listOf(Color(0xD92B4058), Color(0xB8142438), Color(0xC90A1728))))\n        .border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = .30f), Mint.copy(alpha = .13f), Color.White.copy(alpha = .05f))), RoundedCornerShape(34.dp))\n        .padding(horizontal = 18.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
             Text("NOW PLAYING", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp, modifier = Modifier.weight(1f))
             IconButton(onClick = onEqualizer) { Icon(Icons.Default.Equalizer, null, tint = Mint) }
         }
         Spacer(Modifier.height(12.dp))
-        AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri, modifier = Modifier.size(190.dp).clip(RoundedCornerShape(32.dp)))
+        AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri, modifier = Modifier.size(206.dp).clip(RoundedCornerShape(30.dp)).border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(30.dp)))
         Spacer(Modifier.height(24.dp))
         Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(track?.artist ?: metadata?.artist?.toString() ?: "Online stream", color = Muted, fontSize = 14.sp)
@@ -535,7 +539,7 @@ private fun EqualizerScreen(
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             levels.forEachIndexed { index, value ->
-                Column(Modifier.width(45.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.width(50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(if (value > 0) "+%.1f".format(value) else "%.1f".format(value), color = Mint, fontSize = 10.sp)
                     Box(Modifier.width(44.dp).height(210.dp), contentAlignment = Alignment.Center) {
                         Slider(value = value, onValueChange = { onLevel(index, it) }, valueRange = -12f..12f, enabled = enabled, modifier = Modifier.width(210.dp).height(44.dp).rotate(-90f), colors = SliderDefaults.colors(thumbColor = Mint, activeTrackColor = Mint, inactiveTrackColor = Color.White.copy(alpha = .18f)))
