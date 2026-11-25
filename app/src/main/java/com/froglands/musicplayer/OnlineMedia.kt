@@ -41,6 +41,7 @@ fun OnlineMediaScreen(
 ) {
     var mode by remember { mutableStateOf(OnlineMode.YOUTUBE_VIDEO) }
     var youtubeUrl by remember { mutableStateOf("") }
+    var activeVideoId by remember { mutableStateOf<String?>(null) }
     var audioUrl by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
         Text("ONLINE MEDIA", color = OnlineMuted, fontSize = 11.sp)
@@ -60,11 +61,26 @@ fun OnlineMediaScreen(
                 placeholder = { Text("Tempel URL YouTube", color = OnlineMuted) }, leadingIcon = { Icon(Icons.Default.VideoLibrary, null, tint = OnlineMint) })
             Spacer(Modifier.height(12.dp))
             val videoId = remember(youtubeUrl) { extractYouTubeId(youtubeUrl) }
-            if (videoId != null) {
-                YouTubeEmbed(videoId, Modifier.fillMaxWidth().height(220.dp))
-                Text("Diputar melalui player embed resmi YouTube. Fitur download YouTube tidak disediakan.", color = OnlineMuted, fontSize = 11.sp)
+            Button(
+                onClick = { activeVideoId = videoId },
+                enabled = videoId != null,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = OnlineMint, contentColor = Color(0xFF090D18)),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Default.PlayArrow, null)
+                Spacer(Modifier.width(8.dp))
+                Text("EKSEKUSI / PUTAR YOUTUBE")
+            }
+            if (videoId == null && youtubeUrl.isNotBlank()) {
+                Text("URL YouTube tidak valid. Gunakan link youtube.com/watch?v=… atau youtu.be/…", color = Color(0xFFFF9A9A), fontSize = 11.sp)
+            }
+            if (activeVideoId != null) {
+                Spacer(Modifier.height(12.dp))
+                YouTubeEmbed(activeVideoId!!, Modifier.fillMaxWidth().height(230.dp))
+                Text("Tekan tombol Play di dalam pemutar. Streaming memakai embed resmi YouTube; download YouTube tidak tersedia.", color = OnlineMuted, fontSize = 11.sp)
             } else {
-                Text("Tempel tautan video YouTube untuk memutarnya di sini.", color = OnlineMuted, fontSize = 12.sp)
+                Text("Tempel link, lalu tekan tombol Eksekusi untuk membuka pemutar video di aplikasi.", color = OnlineMuted, fontSize = 12.sp)
             }
         } else {
             OutlinedTextField(value = audioUrl, onValueChange = { audioUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
@@ -118,10 +134,19 @@ private fun YouTubeEmbed(videoId: String, modifier: Modifier = Modifier) {
             }
         },
         update = { webView ->
-            val target = "https://www.youtube-nocookie.com/embed/$videoId?playsinline=1&autoplay=0"
+            val target = "youtube_embed_$videoId"
             if (webView.tag != target) {
                 webView.tag = target
-                webView.loadUrl(target)
+                val html = """
+                    <!doctype html><html><head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+                    <style>html,body{margin:0;padding:0;background:#000;width:100%;height:100%;overflow:hidden}
+                    iframe{border:0;width:100%;height:100%}</style></head><body>
+                    <iframe src="https://www.youtube.com/embed/$videoId?playsinline=1&autoplay=0&enablejsapi=1&origin=https%3A%2F%2Fwww.youtube.com"
+                    title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                    </body></html>
+                """.trimIndent()
+                webView.loadDataWithBaseURL("https://www.youtube.com/", html, "text/html", "UTF-8", null)
             }
         }
     )
