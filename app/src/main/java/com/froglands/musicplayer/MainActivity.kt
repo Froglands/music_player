@@ -73,6 +73,7 @@ private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k"
 data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "")
 
 private enum class Screen { LIBRARY, ONLINE, PLAYER, EQUALIZER }
+private enum class SpectrumStyle(val title: String) { WAVE("Wave"), BARS("Bars"), MIRROR("Mirror"), CIRCULAR("Circular") }
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
@@ -161,6 +162,7 @@ private fun MusicPlayerApp(
     var liveMetadata by remember { mutableStateOf<androidx.media3.common.MediaMetadata?>(null) }
     var spectrum by remember { mutableStateOf(List(28) { 0.025f }) }
     var spectrumStatus by remember { mutableStateOf("Putar lagu untuk membaca spektrum audio.") }
+    var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
     var eqEnabled by remember { mutableStateOf(false) }
     var eqLevels by remember { mutableStateOf(List(12) { 0f }) }
     var subEnabled by remember { mutableStateOf(false) }
@@ -374,7 +376,7 @@ private fun MusicPlayerApp(
                         }
                     }
                     Screen.PLAYER -> FullPlayer(
-                        track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, metadata = liveMetadata,
+                        track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, spectrumStyle = spectrumStyle, onSpectrumStyle = { spectrumStyle = it }, metadata = liveMetadata,
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
                         onBack = { screen = Screen.LIBRARY }, onEqualizer = { screen = Screen.EQUALIZER },
                         onPrevious = {
@@ -462,7 +464,7 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 
 @Composable
 private fun FullPlayer(
-    track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, metadata: androidx.media3.common.MediaMetadata?,
+    track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, onSpectrumStyle: (SpectrumStyle) -> Unit, metadata: androidx.media3.common.MediaMetadata?,
     hasRecordPermission: Boolean, requestRecordPermission: () -> Unit, onBack: () -> Unit, onEqualizer: () -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit
 ) {
@@ -491,8 +493,19 @@ private fun FullPlayer(
         Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
         track?.composer?.takeIf { it.isNotBlank() }?.let { Text("Composer: $it", color = Muted, fontSize = 10.sp) }
         Spacer(Modifier.height(22.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SpectrumStyle.values().forEach { style ->
+                val active = spectrumStyle == style
+                Text(style.title, modifier = Modifier.clip(RoundedCornerShape(20.dp))
+                    .background(if (active) Mint.copy(alpha = .18f) else Color.White.copy(alpha = .055f))
+                    .border(1.dp, if (active) Mint.copy(alpha = .55f) else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
+                    .clickable { onSpectrumStyle(style) }.padding(horizontal = 14.dp, vertical = 8.dp),
+                    color = if (active) Mint else Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = .045f)).padding(horizontal = 12.dp, vertical = 10.dp)) {
-            SpectrumWave(spectrum, Modifier.fillMaxWidth().height(92.dp))
+            SpectrumRenderer(spectrum, spectrumStyle, Modifier.fillMaxWidth().height(100.dp))
         }
         Text(spectrumStatus, color = if (spectrumStatus.contains("LIVE")) Mint else Muted, fontSize = 10.sp)
         if (!hasRecordPermission) TextButton(onClick = requestRecordPermission) { Text("Izinkan akses audio untuk spectrum", color = Mint) }
