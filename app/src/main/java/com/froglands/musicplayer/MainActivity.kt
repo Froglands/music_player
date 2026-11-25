@@ -69,6 +69,7 @@ import androidx.media3.ui.PlayerNotificationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import kotlin.math.*
 
 private val Ink = Color(0xFF090D18)
@@ -215,9 +216,15 @@ private fun MusicPlayerApp(
     var offlineFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
     var downloadBusy by remember { mutableStateOf(false) }
     var downloadMessage by remember { mutableStateOf("") }
+    var audioDownloadQuality by remember { mutableStateOf("Original") }
+    var videoDownloadQuality by remember { mutableStateOf("720p") }
     val coroutineScope = rememberCoroutineScope()
     val offlineDirectory = remember { java.io.File(appContext.filesDir, "offline_media").apply { mkdirs() } }
-    LaunchedEffect(Unit) { offlineFiles = offlineDirectory.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList() }
+    LaunchedEffect(Unit) {
+        offlineFiles = offlineDirectory.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList()
+        audioDownloadQuality = preferences.getString("download_audio_quality", "Original") ?: "Original"
+        videoDownloadQuality = preferences.getString("download_video_quality", "720p") ?: "720p"
+    }
     fun startPrivateDownload(url: String) {
         if (downloadBusy) return
         downloadBusy = true
@@ -487,7 +494,10 @@ private fun MusicPlayerApp(
                     Screen.SETTINGS -> SettingsScreen(spectrum, spectrumStyle,
                         onStyleSelected = { style -> spectrumStyle = style; preferences.edit().putString("spectrum_style", style.name).apply() },
                         lyricsEnabled = lyricsEnabled,
-                        onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() }
+                        onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() },
+                        audioQuality = audioDownloadQuality, videoQuality = videoDownloadQuality,
+                        onAudioQuality = { value -> audioDownloadQuality = value; preferences.edit().putString("download_audio_quality", value).apply() },
+                        onVideoQuality = { value -> videoDownloadQuality = value; preferences.edit().putString("download_video_quality", value).apply() }
                     )
                 }
             }
@@ -840,7 +850,11 @@ private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
 }
 
 @Composable
-private fun SettingsScreen(spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit, lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit) {
+private fun SettingsScreen(
+    spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit,
+    lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit,
+    audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit
+) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
         Text("PENGATURAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(Modifier.height(5.dp))
@@ -881,6 +895,25 @@ private fun SettingsScreen(spectrum: List<Float>, selectedStyle: SpectrumStyle, 
                 Text("Tampilkan panel lirik di Now Playing", color = Muted, fontSize = 11.sp)
             }
             Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
+        }
+        Spacer(Modifier.height(16.dp))
+        Divider(color = Color.White.copy(alpha = .12f))
+        Spacer(Modifier.height(12.dp))
+        Text("Kualitas unduhan", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("Preferensi kualitas untuk sumber yang menyediakan beberapa varian. URL file langsung diunduh sesuai kualitas asli sumber.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        Spacer(Modifier.height(10.dp))
+        Text("Audio", color = Color.White, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            listOf("Original", "128", "192", "256", "320").forEach { quality ->
+                FilterChip(selected = audioQuality == quality, onClick = { onAudioQuality(quality) }, label = { Text(if (quality == "Original") quality else "$quality kbps") })
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Video", color = Color.White, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            listOf("360p", "480p", "720p", "1080p").forEach { quality ->
+                FilterChip(selected = videoQuality == quality, onClick = { onVideoQuality(quality) }, label = { Text(quality) })
+            }
         }
         Spacer(Modifier.height(20.dp))
     }
