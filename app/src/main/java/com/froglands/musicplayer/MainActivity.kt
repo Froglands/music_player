@@ -756,66 +756,6 @@ private fun SettingsScreen(spectrum: List<Float>, selectedStyle: SpectrumStyle, 
 }
 
 @Composable
-private fun SpectrumLine(levels: List<Float>, modifier: Modifier) {
-    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(95, easing = FastOutSlowInEasing), label = "line-$i").value }
-    Canvas(modifier) {
-        if (values.isEmpty()) return@Canvas
-        val path = Path()
-        values.forEachIndexed { i, v ->
-            val x = if (values.size == 1) size.width / 2f else i * size.width / (values.size - 1)
-            val y = size.height * .88f - v * size.height * .76f
-            if (i == 0) path.moveTo(x, y) else {
-                val px = (i - 1) * size.width / (values.size - 1)
-                val py = size.height * .88f - values[i - 1] * size.height * .76f
-                val cx = (px + x) / 2f
-                path.cubicTo(cx, py, cx, y, x, y)
-            }
-        }
-        drawPath(path, Mint, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
-    }
-}
-
-@Composable
-private fun SpectrumFilled(levels: List<Float>, modifier: Modifier) {
-    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(100, easing = FastOutSlowInEasing), label = "filled-$i").value }
-    Canvas(modifier) {
-        if (values.isEmpty()) return@Canvas
-        val path = Path().apply {
-            moveTo(0f, size.height)
-            values.forEachIndexed { i, v ->
-                val x = if (values.size == 1) size.width / 2f else i * size.width / (values.size - 1)
-                val y = size.height * .92f - v * size.height * .82f
-                if (i == 0) lineTo(x, y) else {
-                    val px = (i - 1) * size.width / (values.size - 1)
-                    val py = size.height * .92f - values[i - 1] * size.height * .82f
-                    val cx = (px + x) / 2f
-                    cubicTo(cx, py, cx, y, x, y)
-                }
-            }
-            lineTo(size.width, size.height)
-            close()
-        }
-        drawPath(path, Brush.verticalGradient(listOf(Mint.copy(alpha = .72f), Mint.copy(alpha = .04f))))
-    }
-}
-
-@Composable
-private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
-    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(90, easing = FastOutSlowInEasing), label = "dots-$i").value }
-    Canvas(modifier) {
-        if (values.isEmpty()) return@Canvas
-        val gap = size.width / (values.size + 1)
-        values.forEachIndexed { i, v ->
-            val x = gap * (i + 1)
-            val radius = 2.dp.toPx() + v * 5.dp.toPx()
-            val y = size.height - radius - v * (size.height - radius * 2f)
-            drawCircle(Mint.copy(alpha = .14f), radius = radius * 1.8f, center = androidx.compose.ui.geometry.Offset(x, y))
-            drawCircle(Mint, radius = radius, center = androidx.compose.ui.geometry.Offset(x, y))
-        }
-    }
-}
-
-@Composable
 private fun EqualizerScreen(
     enabled: Boolean, onEnabled: (Boolean) -> Unit, levels: List<Float>, onLevel: (Int, Float) -> Unit,
     subEnabled: Boolean, onSubEnabled: (Boolean) -> Unit, subGain: Float, onSubGain: (Float) -> Unit,
