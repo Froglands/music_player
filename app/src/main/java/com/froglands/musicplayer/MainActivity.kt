@@ -449,7 +449,10 @@ private fun FullPlayer(
             delay(400)
         }
     }
-    Column(Modifier.fillMaxSize().padding(10.dp).clip(RoundedCornerShape(34.dp))\n        .background(Brush.linearGradient(listOf(Color(0xD92B4058), Color(0xB8142438), Color(0xC90A1728))))\n        .border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = .30f), Mint.copy(alpha = .13f), Color.White.copy(alpha = .05f))), RoundedCornerShape(34.dp))\n        .padding(horizontal = 18.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().padding(10.dp).clip(RoundedCornerShape(34.dp))
+        .background(Brush.linearGradient(listOf(Color(0xD92B4058), Color(0xB8142438), Color(0xC90A1728))))
+        .border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = .30f), Mint.copy(alpha = .13f), Color.White.copy(alpha = .05f))), RoundedCornerShape(34.dp))
+        .padding(horizontal = 18.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
             Text("NOW PLAYING", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp, modifier = Modifier.weight(1f))
