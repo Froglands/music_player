@@ -2,6 +2,7 @@ package com.froglands.musicplayer
 
 import android.Manifest
 import android.content.ContentUris
+import android.graphics.BitmapFactory
 import android.content.pm.PackageManager
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
@@ -31,8 +32,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,7 +57,7 @@ private val Muted = Color(0xFF9AA8BD)
 private val TargetFrequencies = floatArrayOf(31f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 10000f, 12000f, 16000f)
 private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "10k", "12k", "16k")
 
-data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long)
+data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "")
 
 private enum class Screen { LIBRARY, ONLINE, PLAYER, EQUALIZER }
 
@@ -97,17 +101,23 @@ class MainActivity : ComponentActivity() {
     private suspend fun queryTracks(): List<Track> = withContext(Dispatchers.IO) {
         val result = mutableListOf<Track>()
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION)
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.ALBUM_ARTIST, MediaStore.Audio.Media.YEAR, MediaStore.Audio.Media.TRACK, MediaStore.Audio.Media.COMPOSER)
         contentResolver.query(collection, projection, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            val albumArtistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ARTIST)
+            val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+            val composerCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.COMPOSER)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 result += Track(id, cursor.getString(titleCol) ?: "Unknown title",
                     cursor.getString(artistCol)?.takeUnless { it == "<unknown>" } ?: "Unknown artist",
-                    ContentUris.withAppendedId(collection, id), cursor.getLong(durationCol))
+                    ContentUris.withAppendedId(collection, id), cursor.getLong(durationCol), cursor.getString(albumCol) ?: "Unknown album", cursor.getString(albumArtistCol) ?: "", cursor.getLong(albumIdCol), cursor.getInt(yearCol), cursor.getInt(trackCol), cursor.getString(composerCol) ?: "")
             }
         }
         result
@@ -135,6 +145,7 @@ private fun MusicPlayerApp(
     var onlineUrl by remember { mutableStateOf("") }
     var screen by remember { mutableStateOf(Screen.LIBRARY) }
     var audioSessionId by remember { mutableIntStateOf(0) }
+    var liveMetadata by remember { mutableStateOf<androidx.media3.common.MediaMetadata?>(null) }
     var spectrum by remember { mutableStateOf(List(28) { 0.025f }) }
     var spectrumStatus by remember { mutableStateOf("Putar lagu untuk membaca spektrum audio.") }
     var eqEnabled by remember { mutableStateOf(false) }
@@ -153,7 +164,8 @@ private fun MusicPlayerApp(
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
-            override fun onAudioSessionIdChanged(audioSessionId: Int) { updateAudioSessionId.value(audioSessionId) }
+            override fun onAudioSessionIdChanged(audioSessionId: Int) { if (audioSessionId > 0) updateAudioSessionId.value(audioSessionId) }
+            override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) { liveMetadata = mediaMetadata }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (mediaItem != null) {
                     val uri = mediaItem.localConfiguration?.uri
@@ -163,6 +175,14 @@ private fun MusicPlayerApp(
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
+    }
+
+    LaunchedEffect(player, playing) {
+        while (playing) {
+            val session = runCatching { player.audioSessionId }.getOrDefault(0)
+            if (session > 0 && session != audioSessionId) audioSessionId = session
+            delay(250)
+        }
     }
 
     // The spectrum is tapped from this player's audio session (not the microphone).
@@ -351,7 +371,7 @@ private fun MusicPlayerApp(
                         }
                     }
                     Screen.PLAYER -> FullPlayer(
-                        track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus,
+                        track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, metadata = liveMetadata,
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
                         onBack = { screen = Screen.LIBRARY }, onEqualizer = { screen = Screen.EQUALIZER },
                         onPrevious = {
@@ -411,7 +431,7 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 
 @Composable
 private fun FullPlayer(
-    track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String,
+    track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, metadata: androidx.media3.common.MediaMetadata?,
     hasRecordPermission: Boolean, requestRecordPermission: () -> Unit, onBack: () -> Unit, onEqualizer: () -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit
 ) {
@@ -431,12 +451,12 @@ private fun FullPlayer(
             IconButton(onClick = onEqualizer) { Icon(Icons.Default.Equalizer, null, tint = Mint) }
         }
         Spacer(Modifier.height(12.dp))
-        Box(Modifier.size(190.dp).clip(RoundedCornerShape(32.dp)).background(Brush.linearGradient(listOf(Color(0xFF29465A), Color(0xFF18243B)))), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.Album, null, tint = Mint.copy(alpha = .9f), modifier = Modifier.size(104.dp))
-        }
+        AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri, modifier = Modifier.size(190.dp).clip(RoundedCornerShape(32.dp)))
         Spacer(Modifier.height(24.dp))
         Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(track?.artist ?: "Online stream", color = Muted, fontSize = 14.sp)
+        Text(track?.artist ?: metadata?.artist?.toString() ?: "Online stream", color = Muted, fontSize = 14.sp)
+        Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
+        track?.composer?.takeIf { it.isNotBlank() }?.let { Text("Composer: $it", color = Muted, fontSize = 10.sp) }
         Spacer(Modifier.height(24.dp))
         SpectrumBars(spectrum, Modifier.fillMaxWidth().height(105.dp))
         Text(spectrumStatus, color = if (spectrumStatus.contains("LIVE")) Mint else Muted, fontSize = 10.sp)
@@ -461,6 +481,21 @@ private fun FullPlayer(
         OutlinedButton(onClick = onEqualizer, shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Mint)) {
             Icon(Icons.Default.Equalizer, null); Spacer(Modifier.width(8.dp)); Text("12-Band Equalizer + Subwoofer")
         }
+    }
+}
+
+
+@Composable
+private fun AlbumCover(uri: Uri?, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val bitmap by produceState<android.graphics.Bitmap?>(initialValue = null, uri) {
+        value = if (uri == null) null else withContext(Dispatchers.IO) {
+            runCatching { context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
+        }
+    }
+    Box(modifier.background(Brush.linearGradient(listOf(Color(0xFF29465A), Color(0xFF18243B)))), contentAlignment = Alignment.Center) {
+        if (bitmap != null) androidx.compose.foundation.Image(bitmap!!.asImageBitmap(), contentDescription = "Album cover", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else Icon(Icons.Default.Album, null, tint = Mint.copy(alpha = .9f), modifier = Modifier.size(104.dp))
     }
 }
 
@@ -502,7 +537,9 @@ private fun EqualizerScreen(
             levels.forEachIndexed { index, value ->
                 Column(Modifier.width(45.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(if (value > 0) "+%.1f".format(value) else "%.1f".format(value), color = Mint, fontSize = 10.sp)
-                    Slider(value = value, onValueChange = { onLevel(index, it) }, valueRange = -12f..12f, enabled = enabled, modifier = Modifier.height(210.dp).width(44.dp).padding(vertical = 4.dp), colors = SliderDefaults.colors(thumbColor = Mint, activeTrackColor = Mint, inactiveTrackColor = Color.White.copy(alpha = .18f)))
+                    Box(Modifier.width(44.dp).height(210.dp), contentAlignment = Alignment.Center) {
+                        Slider(value = value, onValueChange = { onLevel(index, it) }, valueRange = -12f..12f, enabled = enabled, modifier = Modifier.width(210.dp).height(44.dp).rotate(-90f), colors = SliderDefaults.colors(thumbColor = Mint, activeTrackColor = Mint, inactiveTrackColor = Color.White.copy(alpha = .18f)))
+                    }
                     Text(FrequencyLabels[index], color = Muted, fontSize = 10.sp)
                 }
             }
