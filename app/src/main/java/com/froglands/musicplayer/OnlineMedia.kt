@@ -150,3 +150,33 @@ fun OfflineMediaScreen(
         }
     }
 }
+
+
+suspend fun downloadPrivateMedia(context: android.content.Context, url: String): File =
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        require(url.startsWith("https://")) { "Hanya URL HTTPS yang didukung." }
+        val connection = java.net.URL(url).openConnection().apply {
+            connectTimeout = 15000
+            readTimeout = 30000
+            setRequestProperty("User-Agent", "MusicPlayer/1.0")
+        }
+        connection.connect()
+        val mime = connection.contentType?.substringBefore(";")?.lowercase().orEmpty()
+        val pathName = url.substringBefore("?").substringAfterLast("/").ifBlank { "media_download" }
+        val safeName = pathName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(90)
+        val extension = safeName.substringAfterLast(".", "").lowercase()
+        val supported = setOf("mp3", "m4a", "aac", "wav", "ogg", "flac", "mp4", "m4v", "webm", "mkv")
+        require(mime.startsWith("audio/") || mime.startsWith("video/") || extension in supported) {
+            "URL bukan file audio/video langsung (Content-Type: " + mime.ifBlank { "unknown" } + ")."
+        }
+        require(connection.contentLengthLong <= 500L * 1024L * 1024L || connection.contentLengthLong < 0) {
+            "Ukuran file melebihi batas 500 MB."
+        }
+        val directory = File(context.filesDir, "offline_media").apply { mkdirs() }
+        val target = File(directory, safeName.ifBlank { "media_" + System.currentTimeMillis() })
+        val temporary = File(directory, target.name + ".part")
+        connection.getInputStream().use { input -> temporary.outputStream().use { output -> input.copyTo(output) } }
+        if (target.exists()) target.delete()
+        check(temporary.renameTo(target)) { "Gagal menyimpan file unduhan." }
+        target
+    }
