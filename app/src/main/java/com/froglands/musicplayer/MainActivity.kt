@@ -645,7 +645,7 @@ private fun EqualizerScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
-        HorizontalDivider(color = Color.White.copy(alpha = .12f))
+        Divider(color = Color.White.copy(alpha = .12f))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Subwoofer / Deep Bass", color = Color.White, fontWeight = FontWeight.Bold)
