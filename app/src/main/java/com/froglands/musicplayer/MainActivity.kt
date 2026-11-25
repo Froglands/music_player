@@ -655,6 +655,103 @@ private fun SpectrumCircular(levels: List<Float>, modifier: Modifier) {
     }
 }
 @Composable
+private fun SettingsScreen(spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Text("PENGATURAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Spacer(Modifier.height(5.dp))
+        Text("Spectrum visualizer", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Text("Pilih tampilan visualisasi yang muncul di Now Playing.", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(16.dp))
+        SpectrumStyle.values().toList().chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { style ->
+                    val active = style == selectedStyle
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(20.dp))
+                        .background(if (active) Mint.copy(alpha = .11f) else Color.White.copy(alpha = .045f))
+                        .border(1.dp, if (active) Mint.copy(alpha = .65f) else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
+                        .clickable { onStyleSelected(style) }.padding(12.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(style.title, color = if (active) Mint else Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            if (active) Icon(Icons.Default.CheckCircle, null, tint = Mint, modifier = Modifier.size(17.dp))
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Box(Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x55202F43)).padding(5.dp)) {
+                            SpectrumRenderer(spectrum, style, Modifier.fillMaxSize())
+                        }
+                        Spacer(Modifier.height(7.dp))
+                        Text(style.description, color = Muted, fontSize = 10.sp, lineHeight = 14.sp, minLines = 2)
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+        Text("Pilihan langsung diterapkan ke pemutar. Spektrum membaca FFT dari output audio, bukan mikrofon.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun SpectrumLine(levels: List<Float>, modifier: Modifier) {
+    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(95, easing = FastOutSlowInEasing), label = "line-$i").value }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val path = Path()
+        values.forEachIndexed { i, v ->
+            val x = if (values.size == 1) size.width / 2f else i * size.width / (values.size - 1)
+            val y = size.height * .88f - v * size.height * .76f
+            if (i == 0) path.moveTo(x, y) else {
+                val px = (i - 1) * size.width / (values.size - 1)
+                val py = size.height * .88f - values[i - 1] * size.height * .76f
+                val cx = (px + x) / 2f
+                path.cubicTo(cx, py, cx, y, x, y)
+            }
+        }
+        drawPath(path, Mint, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun SpectrumFilled(levels: List<Float>, modifier: Modifier) {
+    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(100, easing = FastOutSlowInEasing), label = "filled-$i").value }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val path = Path().apply {
+            moveTo(0f, size.height)
+            values.forEachIndexed { i, v ->
+                val x = if (values.size == 1) size.width / 2f else i * size.width / (values.size - 1)
+                val y = size.height * .92f - v * size.height * .82f
+                if (i == 0) lineTo(x, y) else {
+                    val px = (i - 1) * size.width / (values.size - 1)
+                    val py = size.height * .92f - values[i - 1] * size.height * .82f
+                    val cx = (px + x) / 2f
+                    cubicTo(cx, py, cx, y, x, y)
+                }
+            }
+            lineTo(size.width, size.height)
+            close()
+        }
+        drawPath(path, Brush.verticalGradient(listOf(Mint.copy(alpha = .72f), Mint.copy(alpha = .04f))))
+    }
+}
+
+@Composable
+private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
+    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(90, easing = FastOutSlowInEasing), label = "dots-$i").value }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val gap = size.width / (values.size + 1)
+        values.forEachIndexed { i, v ->
+            val x = gap * (i + 1)
+            val radius = 2.dp.toPx() + v * 5.dp.toPx()
+            val y = size.height - radius - v * (size.height - radius * 2f)
+            drawCircle(Mint.copy(alpha = .14f), radius = radius * 1.8f, center = androidx.compose.ui.geometry.Offset(x, y))
+            drawCircle(Mint, radius = radius, center = androidx.compose.ui.geometry.Offset(x, y))
+        }
+    }
+}
+
+@Composable
 private fun EqualizerScreen(
     enabled: Boolean, onEnabled: (Boolean) -> Unit, levels: List<Float>, onLevel: (Int, Float) -> Unit,
     subEnabled: Boolean, onSubEnabled: (Boolean) -> Unit, subGain: Float, onSubGain: (Float) -> Unit,
