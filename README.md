@@ -33,3 +33,8 @@ Streaming online hanya ditujukan untuk URL audio langsung atau layanan/API yang 
 ## Status
 
 🚧 Pengembangan aktif. Fitur ditandai selesai setelah implementasi dan pengujian build.
+
+
+## Build status
+
+Every push to `main` starts the Android APK workflow. The generated debug APK is published as a downloadable workflow artifact after a successful build.
