@@ -376,7 +376,7 @@ private fun MusicPlayerApp(
                         }
                     }
                     Screen.PLAYER -> FullPlayer(
-                        track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, metadata = liveMetadata,
+                        track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, spectrumStyle = spectrumStyle, metadata = liveMetadata,
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
                         onBack = { screen = Screen.LIBRARY }, onEqualizer = { screen = Screen.EQUALIZER },
                         onPrevious = {
@@ -466,7 +466,7 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 
 @Composable
 private fun FullPlayer(
-    track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, metadata: androidx.media3.common.MediaMetadata?,
+    track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
     hasRecordPermission: Boolean, requestRecordPermission: () -> Unit, onBack: () -> Unit, onEqualizer: () -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit
 ) {
@@ -608,6 +608,10 @@ private fun SpectrumRenderer(levels: List<Float>, style: SpectrumStyle, modifier
         SpectrumStyle.BARS -> SpectrumBarsPremium(levels, modifier, false)
         SpectrumStyle.MIRROR -> SpectrumBarsPremium(levels, modifier, true)
         SpectrumStyle.CIRCULAR -> SpectrumCircular(levels, modifier)
+        SpectrumStyle.LINE -> SpectrumLine(levels, modifier)
+        SpectrumStyle.FILLED -> SpectrumFilled(levels, modifier)
+        SpectrumStyle.DOTS -> SpectrumDots(levels, modifier)
+        SpectrumStyle.PULSE -> SpectrumBarsPremium(levels, modifier, true)
     }
 }
 
@@ -654,6 +658,66 @@ private fun SpectrumCircular(levels: List<Float>, modifier: Modifier) {
         drawCircle(Mint.copy(alpha = .75f), radius = 3.dp.toPx(), center = center)
     }
 }
+@Composable
+private fun SpectrumLine(levels: List<Float>, modifier: Modifier) {
+    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(95), label = "line-$i").value }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val path = Path()
+        values.forEachIndexed { i, v ->
+            val x = if (values.size == 1) size.width / 2f else i * size.width / (values.size - 1)
+            val y = size.height * .88f - v * size.height * .76f
+            if (i == 0) path.moveTo(x, y) else {
+                val px = (i - 1) * size.width / (values.size - 1)
+                val py = size.height * .88f - values[i - 1] * size.height * .76f
+                val cx = (px + x) / 2f
+                path.cubicTo(cx, py, cx, y, x, y)
+            }
+        }
+        drawPath(path, Mint, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun SpectrumFilled(levels: List<Float>, modifier: Modifier) {
+    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(100), label = "filled-$i").value }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val path = Path().apply {
+            moveTo(0f, size.height)
+            values.forEachIndexed { i, v ->
+                val x = if (values.size == 1) size.width / 2f else i * size.width / (values.size - 1)
+                val y = size.height * .92f - v * size.height * .82f
+                if (i == 0) lineTo(x, y) else {
+                    val px = (i - 1) * size.width / (values.size - 1)
+                    val py = size.height * .92f - values[i - 1] * size.height * .82f
+                    val cx = (px + x) / 2f
+                    cubicTo(cx, py, cx, y, x, y)
+                }
+            }
+            lineTo(size.width, size.height)
+            close()
+        }
+        drawPath(path, Brush.verticalGradient(listOf(Mint.copy(alpha = .72f), Mint.copy(alpha = .04f))))
+    }
+}
+
+@Composable
+private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
+    val values = levels.mapIndexed { i, v -> animateFloatAsState(v.coerceIn(.02f, 1f), tween(90), label = "dots-$i").value }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val gap = size.width / (values.size + 1)
+        values.forEachIndexed { i, v ->
+            val x = gap * (i + 1)
+            val radius = 2.dp.toPx() + v * 5.dp.toPx()
+            val y = size.height - radius - v * (size.height - radius * 2f)
+            drawCircle(Mint.copy(alpha = .14f), radius * 1.8f, androidx.compose.ui.geometry.Offset(x, y))
+            drawCircle(Mint, radius, androidx.compose.ui.geometry.Offset(x, y))
+        }
+    }
+}
+
 @Composable
 private fun SettingsScreen(spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
