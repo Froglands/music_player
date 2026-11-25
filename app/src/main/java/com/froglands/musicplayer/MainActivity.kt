@@ -80,7 +80,7 @@ private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k"
 
 data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "")
 
-private enum class Screen { LIBRARY, ONLINE, PLAYER, EQUALIZER, SETTINGS }
+private enum class Screen { LIBRARY, ONLINE, OFFLINE, PLAYER, EQUALIZER, SETTINGS }
 private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris") }
 
 class MainActivity : ComponentActivity() {
@@ -212,6 +212,25 @@ private fun MusicPlayerApp(
     val appContext = androidx.compose.ui.platform.LocalContext.current
     val preferences = remember { appContext.getSharedPreferences("music_player_preferences", android.content.Context.MODE_PRIVATE) }
     var lyricsText by remember { mutableStateOf("") }
+    var offlineFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
+    var downloadBusy by remember { mutableStateOf(false) }
+    var downloadMessage by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
+    val offlineDirectory = remember { java.io.File(appContext.filesDir, "offline_media").apply { mkdirs() } }
+    LaunchedEffect(Unit) { offlineFiles = offlineDirectory.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList() }
+    fun startPrivateDownload(url: String) {
+        if (downloadBusy) return
+        downloadBusy = true
+        downloadMessage = "Mengunduh ke penyimpanan privat aplikasi…"
+        coroutineScope.launch {
+            val result = runCatching { downloadPrivateMedia(appContext, url) }
+            result.onSuccess { file ->
+                offlineFiles = offlineDirectory.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList()
+                downloadMessage = "Tersimpan privat: " + file.name
+            }.onFailure { downloadMessage = it.message ?: "Download gagal." }
+            downloadBusy = false
+        }
+    }
     val lyricsKey = selected?.let { "lyrics_${it.id}" } ?: player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { "lyrics_$it" } ?: "lyrics_empty"
     LaunchedEffect(lyricsKey) { lyricsText = preferences.getString(lyricsKey, "") ?: "" }
     var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
@@ -423,30 +442,28 @@ private fun MusicPlayerApp(
                             }
                         }
                     }
-                    Screen.ONLINE -> {
-                        Column(Modifier.fillMaxSize().padding(20.dp)) {
-                            Text("PLAY FROM URL", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                            Spacer(Modifier.height(12.dp))
-                            OutlinedTextField(value = onlineUrl, onValueChange = { onlineUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                                placeholder = { Text("https://…/audio.mp3", color = Muted) }, leadingIcon = { Icon(Icons.Default.Link, null, tint = Muted) },
-                                shape = RoundedCornerShape(16.dp), colors = fieldColors())
-                            Spacer(Modifier.height(12.dp))
-                            Button(onClick = {
-                                val url = onlineUrl.trim()
-                                if (url.startsWith("https://")) {
-                                    selected = null
-                                    player.setMediaItem(MediaItem.Builder().setUri(url).setMediaMetadata(
-                                        MediaMetadata.Builder().setTitle(url.substringAfterLast('/').substringBefore('?').ifBlank { "Online stream" }).build()
-                                    ).build()); player.prepare(); player.play()
-                                    screen = Screen.PLAYER
-                                }
-                            }, enabled = onlineUrl.startsWith("https://"), colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Ink), shape = RoundedCornerShape(14.dp)) {
-                                Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text("Putar stream")
+                    Screen.ONLINE -> OnlineMediaScreen(
+                        onPlayAudio = { url ->
+                            if (url.startsWith("https://")) {
+                                selected = null
+                                player.setMediaItem(MediaItem.Builder().setUri(url).setMediaMetadata(
+                                    MediaMetadata.Builder().setTitle(url.substringAfterLast('/').substringBefore('?').ifBlank { "Online stream" }).build()
+                                ).build())
+                                player.prepare(); player.play(); screen = Screen.PLAYER
                             }
-                            Spacer(Modifier.height(16.dp))
-                            Text("Gunakan URL audio langsung dari sumber yang mengizinkan pemutaran. Tautan halaman web biasa tidak selalu bisa diputar.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
-                        }
-                    }
+                        },
+                        onDownload = { url, _ -> startPrivateDownload(url) },
+                        downloadBusy = downloadBusy, downloadMessage = downloadMessage
+                    )
+                    Screen.OFFLINE -> OfflineMediaScreen(
+                        files = offlineFiles,
+                        onPlay = { file ->
+                            selected = null
+                            player.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+                            player.prepare(); player.play(); screen = Screen.PLAYER
+                        },
+                        onDelete = { file -> file.delete(); offlineFiles = offlineFiles.filterNot { it == file } }
+                    )
                     Screen.PLAYER -> FullPlayer(
                         track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, spectrumStyle = spectrumStyle, metadata = liveMetadata,
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
@@ -490,6 +507,7 @@ private fun MusicPlayerApp(
                 val tabs = listOf(
                     Triple(Screen.LIBRARY, Icons.Default.LibraryMusic, "Library"),
                     Triple(Screen.ONLINE, Icons.Default.Language, "Online"),
+                    Triple(Screen.OFFLINE, Icons.Default.DownloadDone, "Offline"),
                     Triple(Screen.PLAYER, Icons.Default.GraphicEq, "Now Playing"),
                     Triple(Screen.EQUALIZER, Icons.Default.Equalizer, "EQ"),
                     Triple(Screen.SETTINGS, Icons.Default.Settings, "Settings")
