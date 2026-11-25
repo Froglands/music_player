@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
                     return BitmapFactory.decodeByteArray(data, 0, data.size)
                 }
             })
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIconResourceId(android.R.drawable.ic_media_play)
             .build()
         notificationManager.setMediaSessionToken(mediaSession.platformToken)
         notificationManager.setUseNextAction(true)
