@@ -72,10 +72,26 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.*
 
-private val Ink = Color(0xFF090D18)
-private val Panel = Color(0xFF171F32)
-private val Mint = Color(0xFF75F0D0)
-private val Muted = Color(0xFF9AA8BD)
+private data class AppPalette(val name: String, val background: Color, val panel: Color, val accent: Color, val muted: Color)
+private val AppPalettes = listOf(
+    AppPalette("Midnight", Color(0xFF090D18), Color(0xFF171F32), Color(0xFF75F0D0), Color(0xFF9AA8BD)),
+    AppPalette("Ocean", Color(0xFF061827), Color(0xFF102B43), Color(0xFF49C6E5), Color(0xFF9AB8C8)),
+    AppPalette("Purple Haze", Color(0xFF140D22), Color(0xFF28183D), Color(0xFFC69BFF), Color(0xFFB5A6C9)),
+    AppPalette("Rose", Color(0xFF1D0D16), Color(0xFF351927), Color(0xFFFF8FB1), Color(0xFFC7A5B2)),
+    AppPalette("Sunset", Color(0xFF211109), Color(0xFF3B2417), Color(0xFFFFB36B), Color(0xFFD0B29A)),
+    AppPalette("Emerald", Color(0xFF071B16), Color(0xFF123329), Color(0xFF65E6A8), Color(0xFF9BBDAA)),
+    AppPalette("Crimson", Color(0xFF1D090D), Color(0xFF38151D), Color(0xFFFF7185), Color(0xFFC9A0A6)),
+    AppPalette("Arctic", Color(0xFF101923), Color(0xFF202F40), Color(0xFFA7D8FF), Color(0xFFB0C2D2)),
+    AppPalette("Gold", Color(0xFF1B1708), Color(0xFF342B12), Color(0xFFFFD76A), Color(0xFFC9BD94)),
+    AppPalette("Monochrome", Color(0xFF101010), Color(0xFF252525), Color(0xFFE0E0E0), Color(0xFFAAAAAA)),
+    AppPalette("Cyberpunk", Color(0xFF10091F), Color(0xFF21163A), Color(0xFFFF4DE1), Color(0xFFB5A0D4)),
+    AppPalette("Lime", Color(0xFF101807), Color(0xFF253414), Color(0xFFC5F45B), Color(0xFFB3C58C))
+)
+private val activePalette = mutableStateOf(AppPalettes.first())
+private val Ink get() = activePalette.value.background
+private val Panel get() = activePalette.value.panel
+private val Mint get() = activePalette.value.accent
+private val Muted get() = activePalette.value.muted
 private val TargetFrequencies = floatArrayOf(31f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 10000f, 12000f, 16000f)
 private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "10k", "12k", "16k")
 
@@ -210,6 +226,7 @@ private fun MusicPlayerApp(
     var libraryScrollIndex by rememberSaveable { mutableIntStateOf(0) }
     var libraryScrollOffset by rememberSaveable { mutableIntStateOf(0) }
     var lyricsEnabled by rememberSaveable { mutableStateOf(true) }
+    var selectedTheme by rememberSaveable { mutableStateOf("Midnight") }
     val appContext = androidx.compose.ui.platform.LocalContext.current
     val preferences = remember { appContext.getSharedPreferences("music_player_preferences", android.content.Context.MODE_PRIVATE) }
     var lyricsText by remember { mutableStateOf("") }
@@ -243,6 +260,8 @@ private fun MusicPlayerApp(
     var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
     LaunchedEffect(Unit) {
         lyricsEnabled = preferences.getBoolean("lyrics_enabled", true)
+        selectedTheme = preferences.getString("app_theme", "Midnight") ?: "Midnight"
+        activePalette.value = AppPalettes.firstOrNull { it.name == selectedTheme } ?: AppPalettes.first()
         spectrumStyle = runCatching { SpectrumStyle.valueOf(preferences.getString("spectrum_style", "WAVE") ?: "WAVE") }.getOrDefault(SpectrumStyle.WAVE)
     }
     var audioSessionId by remember { mutableIntStateOf(0) }
@@ -497,7 +516,13 @@ private fun MusicPlayerApp(
                         onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() },
                         audioQuality = audioDownloadQuality, videoQuality = videoDownloadQuality,
                         onAudioQuality = { value -> audioDownloadQuality = value; preferences.edit().putString("download_audio_quality", value).apply() },
-                        onVideoQuality = { value -> videoDownloadQuality = value; preferences.edit().putString("download_video_quality", value).apply() }
+                        onVideoQuality = { value -> videoDownloadQuality = value; preferences.edit().putString("download_video_quality", value).apply() },
+                        selectedTheme = selectedTheme,
+                        onThemeSelected = { name ->
+                            selectedTheme = name
+                            activePalette.value = AppPalettes.first { it.name == name }
+                            preferences.edit().putString("app_theme", name).apply()
+                        }
                     )
                 }
             }
@@ -853,11 +878,37 @@ private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
 private fun SettingsScreen(
     spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit,
     lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit,
-    audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit
+    audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
+    selectedTheme: String, onThemeSelected: (String) -> Unit
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
         Text("PENGATURAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(Modifier.height(5.dp))
+        Text("Tema aplikasi", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Text("Pilih salah satu dari 12 kombinasi warna.", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(12.dp))
+        AppPalettes.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { palette ->
+                    val active = palette.name == selectedTheme
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                        .background(palette.panel).border(2.dp, if (active) palette.accent else Color.White.copy(alpha = .10f), RoundedCornerShape(16.dp))
+                        .clickable { onThemeSelected(palette.name) }.padding(11.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(20.dp).clip(CircleShape).background(palette.accent))
+                            Spacer(Modifier.width(8.dp))
+                            Text(palette.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                        Spacer(Modifier.height(9.dp))
+                        Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(palette.accent))
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        Divider(color = Color.White.copy(alpha = .12f))
+        Spacer(Modifier.height(14.dp))
         Text("Spectrum visualizer", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Text("Pilih tampilan visualisasi yang muncul di Now Playing.", color = Muted, fontSize = 12.sp)
         Spacer(Modifier.height(16.dp))
