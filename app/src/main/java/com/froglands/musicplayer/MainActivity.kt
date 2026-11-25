@@ -22,6 +22,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -39,6 +44,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -226,7 +234,7 @@ private fun MusicPlayerApp(
                         spectrum = levels
                         spectrumStatus = "SPECTRUM LIVE • FFT dari output pemutar"
                     }
-                }, (Visualizer.getMaxCaptureRate() / 2).coerceAtLeast(8000), false, true)
+                }, Visualizer.getMaxCaptureRate(), false, true)
                 effect.enabled = true
                 visualizer = effect
                 spectrumStatus = "Visualizer tersambung ke audio session."
@@ -314,16 +322,6 @@ private fun MusicPlayerApp(
                 Icon(Icons.Default.GraphicEq, null, tint = Mint, modifier = Modifier.size(32.dp))
             }
 
-            if (screen == Screen.LIBRARY || screen == Screen.ONLINE) {
-                Row(Modifier.padding(horizontal = 20.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .07f)).padding(5.dp)) {
-                    listOf("Library", "Online").forEachIndexed { index, label ->
-                        Box(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if ((screen == Screen.LIBRARY && index == 0) || (screen == Screen.ONLINE && index == 1)) Mint.copy(alpha = .18f) else Color.Transparent).clickable { screen = if (index == 0) Screen.LIBRARY else Screen.ONLINE }.padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                            Text(label, color = if ((screen == Screen.LIBRARY && index == 0) || (screen == Screen.ONLINE && index == 1)) Mint else Muted, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-
             AnimatedContent(screen, label = "main-screen", modifier = Modifier.weight(1f)) { page ->
                 when (page) {
                     Screen.LIBRARY -> {
@@ -398,7 +396,35 @@ private fun MusicPlayerApp(
 
             if (screen != Screen.PLAYER && screen != Screen.EQUALIZER) {
                 MiniPlayer(track = selected, playing = playing, onOpen = { screen = Screen.PLAYER }, onToggle = { if (player.isPlaying) player.pause() else player.play() })
-                Spacer(Modifier.height(10.dp))
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xCC1B2940))
+                    .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(22.dp))
+                    .padding(horizontal = 4.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val tabs = listOf(
+                    Triple(Screen.LIBRARY, Icons.Default.LibraryMusic, "Library"),
+                    Triple(Screen.ONLINE, Icons.Default.Language, "Online"),
+                    Triple(Screen.PLAYER, Icons.Default.GraphicEq, "Now Playing"),
+                    Triple(Screen.EQUALIZER, Icons.Default.Equalizer, "EQ")
+                )
+                tabs.forEach { (target, icon, label) ->
+                    val active = screen == target
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                            .background(if (active) Mint.copy(alpha = .16f) else Color.Transparent)
+                            .clickable { screen = target }
+                            .padding(vertical = 7.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(icon, null, tint = if (active) Mint else Muted, modifier = Modifier.size(20.dp))
+                        Text(label, color = if (active) Mint else Muted, fontSize = 9.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                    }
+                }
             }
         }
     }
@@ -449,27 +475,28 @@ private fun FullPlayer(
             delay(400)
         }
     }
-    Column(Modifier.fillMaxSize().padding(10.dp).clip(RoundedCornerShape(34.dp))
-        .background(Brush.linearGradient(listOf(Color(0xD92B4058), Color(0xB8142438), Color(0xC90A1728))))
-        .border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = .30f), Mint.copy(alpha = .13f), Color.White.copy(alpha = .05f))), RoundedCornerShape(34.dp))
-        .padding(horizontal = 18.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
             Text("NOW PLAYING", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp, modifier = Modifier.weight(1f))
             IconButton(onClick = onEqualizer) { Icon(Icons.Default.Equalizer, null, tint = Mint) }
         }
         Spacer(Modifier.height(12.dp))
-        AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri, modifier = Modifier.size(206.dp).clip(RoundedCornerShape(30.dp)).border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(30.dp)))
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp)).background(Brush.linearGradient(listOf(Color(0xFF29465A), Color(0xFF17263D)))).border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(30.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
+            AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri, modifier = Modifier.size(238.dp).clip(RoundedCornerShape(24.dp)).border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(24.dp)))
+        }
         Spacer(Modifier.height(24.dp))
         Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(track?.artist ?: metadata?.artist?.toString() ?: "Online stream", color = Muted, fontSize = 14.sp)
         Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
         track?.composer?.takeIf { it.isNotBlank() }?.let { Text("Composer: $it", color = Muted, fontSize = 10.sp) }
-        Spacer(Modifier.height(24.dp))
-        SpectrumBars(spectrum, Modifier.fillMaxWidth().height(105.dp))
+        Spacer(Modifier.height(22.dp))
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = .045f)).padding(horizontal = 12.dp, vertical = 10.dp)) {
+            SpectrumWave(spectrum, Modifier.fillMaxWidth().height(92.dp))
+        }
         Text(spectrumStatus, color = if (spectrumStatus.contains("LIVE")) Mint else Muted, fontSize = 10.sp)
         if (!hasRecordPermission) TextButton(onClick = requestRecordPermission) { Text("Izinkan akses audio untuk spectrum", color = Mint) }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(10.dp))
         Slider(value = position.coerceIn(0f, 1f), onValueChange = { position = it }, onValueChangeFinished = { if (duration > 0) player.seekTo((position * duration).toLong()) }, colors = SliderDefaults.colors(thumbColor = Mint, activeTrackColor = Mint, inactiveTrackColor = Color.White.copy(alpha = .16f)))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(formatTime((position * duration).toLong()), color = Muted, fontSize = 11.sp)
@@ -485,8 +512,8 @@ private fun FullPlayer(
             Spacer(Modifier.width(18.dp))
             IconButton(onClick = onNext, modifier = Modifier.size(54.dp)) { Icon(Icons.Default.SkipNext, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
         }
-        Spacer(Modifier.height(14.dp))
-        OutlinedButton(onClick = onEqualizer, shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Mint)) {
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(onClick = onEqualizer, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Mint)) {
             Icon(Icons.Default.Equalizer, null); Spacer(Modifier.width(8.dp)); Text("12-Band Equalizer + Subwoofer")
         }
     }
@@ -508,53 +535,64 @@ private fun AlbumCover(uri: Uri?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SpectrumBars(levels: List<Float>, modifier: Modifier = Modifier) {
-    val easedLevels = levels.mapIndexed { index, level ->
+private fun SpectrumWave(levels: List<Float>, modifier: Modifier = Modifier) {
+    val smoothed = levels.mapIndexed { index, level ->
         animateFloatAsState(
-            targetValue = level.coerceIn(.025f, 1f),
-            animationSpec = tween(durationMillis = 95, easing = FastOutSlowInEasing),
-            label = "spectrum-band-$index"
+            targetValue = level.coerceIn(.02f, 1f),
+            animationSpec = tween(durationMillis = 100, easing = FastOutSlowInEasing),
+            label = "wave-$index"
         ).value
     }
     Canvas(modifier) {
-        val gap = 3.dp.toPx()
-        val barWidth = ((size.width - gap * (easedLevels.size - 1)) / easedLevels.size).coerceAtLeast(1f)
-        val corner = androidx.compose.ui.geometry.CornerRadius(barWidth / 2f, barWidth / 2f)
-        easedLevels.forEachIndexed { index, level ->
-            val normalized = level.coerceIn(.025f, 1f)
-            val h = (size.height * normalized).coerceAtLeast(4.dp.toPx())
-            val x = index * (barWidth + gap)
-            val top = size.height - h
-            // Soft halo behind each capsule gives the spectrum a restrained premium glow.
-            drawRoundRect(
-                color = Mint.copy(alpha = .12f + normalized * .12f),
-                topLeft = androidx.compose.ui.geometry.Offset(x - .7.dp.toPx(), top - 2.dp.toPx()),
-                size = androidx.compose.ui.geometry.Size(barWidth + 1.4.dp.toPx(), h + 4.dp.toPx()),
-                cornerRadius = corner
-            )
-            drawRoundRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFE4FFF7),
-                        Color(0xFF8BFFE0),
-                        Mint,
-                        Color(0xFF20AFA7).copy(alpha = .92f)
-                    ),
-                    startY = top,
-                    endY = size.height
-                ),
-                topLeft = androidx.compose.ui.geometry.Offset(x, top),
-                size = androidx.compose.ui.geometry.Size(barWidth, h),
-                cornerRadius = corner
-            )
-            // Tiny luminous cap makes movement easier to read at low levels.
-            drawRoundRect(
-                color = Color.White.copy(alpha = .48f),
-                topLeft = androidx.compose.ui.geometry.Offset(x + barWidth * .22f, top + 1.dp.toPx()),
-                size = androidx.compose.ui.geometry.Size(barWidth * .56f, 2.dp.toPx().coerceAtMost(h)),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
-            )
+        if (smoothed.isEmpty()) return@Canvas
+        val mid = size.height * .52f
+        val points = smoothed.mapIndexed { index, level ->
+            val x = if (smoothed.size == 1) size.width / 2f else index * size.width / (smoothed.size - 1)
+            val amplitude = (level * size.height * .42f).coerceAtLeast(2.dp.toPx())
+            androidx.compose.ui.geometry.Offset(x, mid - amplitude)
         }
+        val lower = smoothed.mapIndexed { index, level ->
+            val x = if (smoothed.size == 1) size.width / 2f else index * size.width / (smoothed.size - 1)
+            val amplitude = (level * size.height * .28f).coerceAtLeast(2.dp.toPx())
+            androidx.compose.ui.geometry.Offset(x, mid + amplitude)
+        }
+        val area = Path().apply {
+            moveTo(points.first().x, mid)
+            points.forEachIndexed { i, p ->
+                if (i == 0) lineTo(p.x, p.y) else {
+                    val prev = points[i - 1]
+                    val cx = (prev.x + p.x) / 2f
+                    cubicTo(cx, prev.y, cx, p.y, p.x, p.y)
+                }
+            }
+            lower.asReversed().forEachIndexed { i, p ->
+                val prev = if (i == 0) lower.last() else lower[lower.lastIndex - i + 1]
+                val cx = (prev.x + p.x) / 2f
+                cubicTo(cx, prev.y, cx, p.y, p.x, p.y)
+            }
+            close()
+        }
+        drawPath(area, Brush.verticalGradient(listOf(Mint.copy(alpha = .34f), Mint.copy(alpha = .035f), Color.Transparent)))
+        val line = Path().apply {
+            points.forEachIndexed { i, p ->
+                if (i == 0) moveTo(p.x, p.y) else {
+                    val prev = points[i - 1]
+                    val cx = (prev.x + p.x) / 2f
+                    cubicTo(cx, prev.y, cx, p.y, p.x, p.y)
+                }
+            }
+        }
+        drawPath(line, Mint.copy(alpha = .95f), style = Stroke(width = 2.6.dp.toPx(), cap = StrokeCap.Round))
+        val bottomLine = Path().apply {
+            lower.forEachIndexed { i, p ->
+                if (i == 0) moveTo(p.x, p.y) else {
+                    val prev = lower[i - 1]
+                    val cx = (prev.x + p.x) / 2f
+                    cubicTo(cx, prev.y, cx, p.y, p.x, p.y)
+                }
+            }
+        }
+        drawPath(bottomLine, Color(0xFF49BBAA).copy(alpha = .75f), style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
     }
 }
 
@@ -564,31 +602,55 @@ private fun EqualizerScreen(
     subEnabled: Boolean, onSubEnabled: (Boolean) -> Unit, subGain: Float, onSubGain: (Float) -> Unit,
     subFrequency: Float, onSubFrequency: (Float) -> Unit, status: String, onBack: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
             Text("AUDIO ENGINE", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column { Text("12-Band Equalizer", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold); Text("Kontrol 12 frekuensi ala Music AI", color = Muted, fontSize = 12.sp) }
+            Column {
+                Text("12-Band Equalizer", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Atur tiap frekuensi secara langsung", color = Muted, fontSize = 12.sp)
+            }
             Switch(checked = enabled, onCheckedChange = onEnabled)
         }
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            levels.forEachIndexed { index, value ->
-                Column(Modifier.width(50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (value > 0) "+%.1f".format(value) else "%.1f".format(value), color = Mint, fontSize = 10.sp)
-                    Box(Modifier.width(44.dp).height(210.dp), contentAlignment = Alignment.Center) {
-                        Slider(value = value, onValueChange = { onLevel(index, it) }, valueRange = -12f..12f, enabled = enabled, modifier = Modifier.width(210.dp).height(44.dp).rotate(-90f), colors = SliderDefaults.colors(thumbColor = Mint, activeTrackColor = Mint, inactiveTrackColor = Color.White.copy(alpha = .18f)))
+        Spacer(Modifier.height(14.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                .background(Brush.linearGradient(listOf(Color(0xAA263B52), Color(0x88202D43))))
+                .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(24.dp))
+                .padding(horizontal = 10.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            (0..1).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+                    (0..5).forEach { col ->
+                        val index = row * 6 + col
+                        val value = levels[index]
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = if (value > 0f) "+%.1f".format(value) else "%.1f".format(value),
+                                color = if (enabled) Mint else Muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(7.dp))
+                            VerticalEqFader(
+                                value = value, enabled = enabled, onValue = { onLevel(index, it) },
+                                modifier = Modifier.height(132.dp).width(38.dp)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(FrequencyLabels[index], color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                        }
                     }
-                    Text(FrequencyLabels[index], color = Muted, fontSize = 10.sp)
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        Divider(color = Color.White.copy(alpha = .1f))
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(color = Color.White.copy(alpha = .12f))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column { Text("Subwoofer / Deep Bass", color = Color.White, fontWeight = FontWeight.Bold); Text("Low-frequency enhancement", color = Muted, fontSize = 11.sp) }
+            Column {
+                Text("Subwoofer / Deep Bass", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Low-frequency enhancement", color = Muted, fontSize = 11.sp)
+            }
             Switch(checked = subEnabled, onCheckedChange = onSubEnabled)
         }
         Text("Gain  ${"%.1f".format(subGain)} dB", color = Mint, fontSize = 12.sp)
@@ -597,7 +659,56 @@ private fun EqualizerScreen(
         Slider(value = subFrequency, onValueChange = onSubFrequency, valueRange = 50f..160f, enabled = subEnabled, colors = SliderDefaults.colors(thumbColor = Mint, activeTrackColor = Mint))
         Spacer(Modifier.height(8.dp))
         Text(status, color = Muted, fontSize = 11.sp)
-        Text("Catatan: 12 slider dipetakan ke jumlah band EQ hardware yang tersedia. Subwoofer adalah penguatan bass frekuensi rendah melalui EQ/BassBoost; hasilnya mengikuti dukungan perangkat dan speaker/headphone.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        Text("12 kontrol dipetakan ke band EQ hardware yang tersedia. Hasil akhir mengikuti dukungan audio perangkat dan headphone/speaker.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun VerticalEqFader(
+    value: Float,
+    enabled: Boolean,
+    onValue: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val minValue = -15f
+    val maxValue = 15f
+    val fraction = ((value - minValue) / (maxValue - minValue)).coerceIn(0f, 1f)
+    val trackColor = if (enabled) Color.White.copy(alpha = .18f) else Color.White.copy(alpha = .08f)
+    val activeColor = if (enabled) Mint else Muted.copy(alpha = .55f)
+    val updateFromY: (Float, Float) -> Unit = { y, height ->
+        val f = (1f - (y / height).coerceIn(0f, 1f))
+        onValue((minValue + f * (maxValue - minValue)).coerceIn(minValue, maxValue))
+    }
+    Canvas(
+        modifier = modifier
+            .pointerInput(enabled) {
+                if (enabled) {
+                    detectTapGestures { point -> updateFromY(point.y, size.height.toFloat()) }
+                }
+            }
+            .draggable(
+                orientation = Orientation.Vertical,
+                enabled = enabled,
+                reverseDirection = false,
+                state = rememberDraggableState { delta ->
+                    val next = (value - delta / size.height * (maxValue - minValue)).coerceIn(minValue, maxValue)
+                    onValue(next)
+                }
+            )
+    ) {
+        val centerX = size.width / 2f
+        val top = 8.dp.toPx()
+        val bottom = size.height - 8.dp.toPx()
+        val trackW = 4.dp.toPx()
+        val centerY = (top + bottom) / 2f
+        val knobY = bottom - fraction * (bottom - top)
+        drawRoundRect(trackColor, androidx.compose.ui.geometry.Offset(centerX - trackW / 2, top), androidx.compose.ui.geometry.Size(trackW, bottom - top), androidx.compose.ui.geometry.CornerRadius(trackW, trackW))
+        drawRoundRect(activeColor.copy(alpha = .9f), androidx.compose.ui.geometry.Offset(centerX - trackW / 2, min(centerY, knobY)), androidx.compose.ui.geometry.Size(trackW, abs(centerY - knobY)), androidx.compose.ui.geometry.CornerRadius(trackW, trackW))
+        drawCircle(activeColor.copy(alpha = .12f), radius = 15.dp.toPx(), center = androidx.compose.ui.geometry.Offset(centerX, knobY))
+        drawRoundRect(activeColor, androidx.compose.ui.geometry.Offset(centerX - 11.dp.toPx(), knobY - 7.dp.toPx()), androidx.compose.ui.geometry.Size(22.dp.toPx(), 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(7.dp.toPx(), 7.dp.toPx()))
+        drawCircle(Color.White.copy(alpha = if (enabled) .8f else .35f), radius = 2.dp.toPx(), center = androidx.compose.ui.geometry.Offset(centerX, knobY))
+        drawLine(Color.White.copy(alpha = .22f), androidx.compose.ui.geometry.Offset(centerX - 9.dp.toPx(), centerY), androidx.compose.ui.geometry.Offset(centerX + 9.dp.toPx(), centerY), strokeWidth = 1.dp.toPx())
     }
 }
 
