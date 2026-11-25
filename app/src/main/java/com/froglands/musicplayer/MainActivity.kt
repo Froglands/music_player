@@ -72,8 +72,8 @@ private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k"
 
 data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "")
 
-private enum class Screen { LIBRARY, ONLINE, PLAYER, EQUALIZER }
-private enum class SpectrumStyle(val title: String) { WAVE("Wave"), BARS("Bars"), MIRROR("Mirror"), CIRCULAR("Circular") }
+private enum class Screen { LIBRARY, ONLINE, PLAYER, EQUALIZER, SETTINGS }
+private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris") }
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
