@@ -505,17 +505,50 @@ private fun AlbumCover(uri: Uri?, modifier: Modifier = Modifier) {
 
 @Composable
 private fun SpectrumBars(levels: List<Float>, modifier: Modifier = Modifier) {
+    val easedLevels = levels.mapIndexed { index, level ->
+        animateFloatAsState(
+            targetValue = level.coerceIn(.025f, 1f),
+            animationSpec = tween(durationMillis = 95, easing = FastOutSlowInEasing),
+            label = "spectrum-band-$index"
+        ).value
+    }
     Canvas(modifier) {
-        val gap = 4.dp.toPx()
-        val barWidth = ((size.width - gap * (levels.size - 1)) / levels.size).coerceAtLeast(1f)
-        levels.forEachIndexed { index, level ->
-            val h = (size.height * level.coerceIn(.025f, 1f)).coerceAtLeast(3.dp.toPx())
+        val gap = 3.dp.toPx()
+        val barWidth = ((size.width - gap * (easedLevels.size - 1)) / easedLevels.size).coerceAtLeast(1f)
+        val corner = androidx.compose.ui.geometry.CornerRadius(barWidth / 2f, barWidth / 2f)
+        easedLevels.forEachIndexed { index, level ->
+            val normalized = level.coerceIn(.025f, 1f)
+            val h = (size.height * normalized).coerceAtLeast(4.dp.toPx())
             val x = index * (barWidth + gap)
+            val top = size.height - h
+            // Soft halo behind each capsule gives the spectrum a restrained premium glow.
             drawRoundRect(
-                brush = Brush.verticalGradient(listOf(Color(0xFFB2FFE9), Mint, Color(0xFF239E9A))),
-                topLeft = androidx.compose.ui.geometry.Offset(x, size.height - h),
+                color = Mint.copy(alpha = .12f + normalized * .12f),
+                topLeft = androidx.compose.ui.geometry.Offset(x - .7.dp.toPx(), top - 2.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(barWidth + 1.4.dp.toPx(), h + 4.dp.toPx()),
+                cornerRadius = corner
+            )
+            drawRoundRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFE4FFF7),
+                        Color(0xFF8BFFE0),
+                        Mint,
+                        Color(0xFF20AFA7).copy(alpha = .92f)
+                    ),
+                    startY = top,
+                    endY = size.height
+                ),
+                topLeft = androidx.compose.ui.geometry.Offset(x, top),
                 size = androidx.compose.ui.geometry.Size(barWidth, h),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2, barWidth / 2)
+                cornerRadius = corner
+            )
+            // Tiny luminous cap makes movement easier to read at low levels.
+            drawRoundRect(
+                color = Color.White.copy(alpha = .48f),
+                topLeft = androidx.compose.ui.geometry.Offset(x + barWidth * .22f, top + 1.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(barWidth * .56f, 2.dp.toPx().coerceAtMost(h)),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
             )
         }
     }
