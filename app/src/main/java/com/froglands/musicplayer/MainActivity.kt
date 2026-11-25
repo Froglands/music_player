@@ -376,7 +376,7 @@ private fun MusicPlayerApp(
                         }
                     }
                     Screen.PLAYER -> FullPlayer(
-                        track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, spectrumStyle = spectrumStyle, onSpectrumStyle = { spectrumStyle = it }, metadata = liveMetadata,
+                        track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, metadata = liveMetadata,
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
                         onBack = { screen = Screen.LIBRARY }, onEqualizer = { screen = Screen.EQUALIZER },
                         onPrevious = {
@@ -412,7 +412,8 @@ private fun MusicPlayerApp(
                     Triple(Screen.LIBRARY, Icons.Default.LibraryMusic, "Library"),
                     Triple(Screen.ONLINE, Icons.Default.Language, "Online"),
                     Triple(Screen.PLAYER, Icons.Default.GraphicEq, "Now Playing"),
-                    Triple(Screen.EQUALIZER, Icons.Default.Equalizer, "EQ")
+                    Triple(Screen.EQUALIZER, Icons.Default.Equalizer, "EQ"),
+                    Triple(Screen.SETTINGS, Icons.Default.Settings, "Settings")
                 )
                 tabs.forEach { (target, icon, label) ->
                     val active = screen == target
@@ -464,7 +465,7 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 
 @Composable
 private fun FullPlayer(
-    track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, onSpectrumStyle: (SpectrumStyle) -> Unit, metadata: androidx.media3.common.MediaMetadata?,
+    track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, metadata: androidx.media3.common.MediaMetadata?,
     hasRecordPermission: Boolean, requestRecordPermission: () -> Unit, onBack: () -> Unit, onEqualizer: () -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit
 ) {
@@ -493,17 +494,6 @@ private fun FullPlayer(
         Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
         track?.composer?.takeIf { it.isNotBlank() }?.let { Text("Composer: $it", color = Muted, fontSize = 10.sp) }
         Spacer(Modifier.height(22.dp))
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SpectrumStyle.values().forEach { style ->
-                val active = spectrumStyle == style
-                Text(style.title, modifier = Modifier.clip(RoundedCornerShape(20.dp))
-                    .background(if (active) Mint.copy(alpha = .18f) else Color.White.copy(alpha = .055f))
-                    .border(1.dp, if (active) Mint.copy(alpha = .55f) else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
-                    .clickable { onSpectrumStyle(style) }.padding(horizontal = 14.dp, vertical = 8.dp),
-                    color = if (active) Mint else Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-        Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = .045f)).padding(horizontal = 12.dp, vertical = 10.dp)) {
             SpectrumRenderer(spectrum, spectrumStyle, Modifier.fillMaxWidth().height(100.dp))
         }
