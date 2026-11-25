@@ -393,6 +393,7 @@ private fun MusicPlayerApp(
                         subEnabled = subEnabled, onSubEnabled = { subEnabled = it }, subGain = subGain, onSubGain = { subGain = it },
                         subFrequency = subFrequency, onSubFrequency = { subFrequency = it }, status = eqStatus, onBack = { screen = Screen.PLAYER }
                     )
+                    Screen.SETTINGS -> SettingsScreen(spectrum, spectrumStyle) { spectrumStyle = it }
                 }
             }
 
