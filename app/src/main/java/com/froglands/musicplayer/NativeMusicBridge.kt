@@ -62,25 +62,43 @@ class NativeMusicBridge(private val activity: MainActivity, private val web: Web
     }
     @JavascriptInterface fun searchTracks(q: String, folder: String) = sendTracks(q, folder)
     @JavascriptInterface fun playTrack(index: Int) {
-        val track = tracks.getOrNull(index) ?: return
-        val items = tracks.map { t -> MediaItem.Builder().setUri(t.uri).setMediaMetadata(MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist).setAlbumTitle(t.album).build()).build() }
-        player.setMediaItems(items, tracks.indexOf(track), 0L)
-        player.prepare()
-        player.play()
-        pushState()
+        activity.runOnUiThread {
+            val track = tracks.getOrNull(index) ?: run { showStatus("Lagu tidak ditemukan. Muat ulang Library."); return@runOnUiThread }
+            val selectedIndex = tracks.indexOf(track)
+            val items = tracks.map { t ->
+                MediaItem.Builder().setUri(t.uri).setMediaMetadata(
+                    MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist).setAlbumTitle(t.album).build()
+                ).build()
+            }
+            player.setMediaItems(items, selectedIndex, 0L)
+            player.prepare()
+            player.playWhenReady = true
+            pushState()
+        }
     }
     @JavascriptInterface fun togglePlayback() { activity.runOnUiThread { if (player.isPlaying) player.pause() else player.play(); pushState() } }
     @JavascriptInterface fun next() { activity.runOnUiThread { if (player.hasNextMediaItem()) player.seekToNextMediaItem() } }
     @JavascriptInterface fun previous() { activity.runOnUiThread { if (player.hasPreviousMediaItem()) player.seekToPreviousMediaItem() } }
     @JavascriptInterface fun seekTo(ms: Int) { activity.runOnUiThread { player.seekTo(ms.toLong().coerceAtLeast(0L)) } }
     @JavascriptInterface fun playUrl(url: String) {
-        if (!url.startsWith("https://")) { showStatus("URL harus HTTPS."); return }
-        player.setMediaItem(MediaItem.Builder().setUri(url).setMediaMetadata(MediaMetadata.Builder().setTitle(url.substringAfterLast('/').substringBefore('?')).build()).build())
-        player.prepare(); player.play()
+        if (!url.startsWith("https://", ignoreCase = true)) { showStatus("URL harus HTTPS."); return }
+        activity.runOnUiThread {
+            player.setMediaItem(MediaItem.Builder().setUri(url).setMediaMetadata(
+                MediaMetadata.Builder().setTitle(url.substringAfterLast('/').substringBefore('?')).build()
+            ).build())
+            player.prepare()
+            player.playWhenReady = true
+            pushState()
+        }
     }
     @JavascriptInterface fun playOffline(index: Int) {
-        val f = files.getOrNull(index) ?: return
-        player.setMediaItem(MediaItem.fromUri(Uri.fromFile(f))); player.prepare(); player.play()
+        activity.runOnUiThread {
+            val f = files.getOrNull(index) ?: run { showStatus("File offline tidak ditemukan."); return@runOnUiThread }
+            player.setMediaItem(MediaItem.fromUri(Uri.fromFile(f)))
+            player.prepare()
+            player.playWhenReady = true
+            pushState()
+        }
     }
     @JavascriptInterface fun deleteOffline(index: Int) { files.getOrNull(index)?.delete(); refreshFiles() }
     @JavascriptInterface fun setEqBand(index: Int, value: Double) {
