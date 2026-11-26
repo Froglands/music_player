@@ -709,7 +709,6 @@ private fun MusicPlayerApp(
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
                         lyricsEnabled = lyricsEnabled, lyricsText = lyricsText,
                         onLyricsChange = { lyricsText = it; preferences.edit().putString(lyricsKey, it).apply() },
-                        onBack = { screen = Screen.LIBRARY },
                         onPrevious = {
                             val index = tracks.indexOfFirst { it.id == selected?.id }
                             if (index > 0) player.seekToPreviousMediaItem()
@@ -862,7 +861,7 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 @Composable
 private fun FullPlayer(
     track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
-    hasRecordPermission: Boolean, requestRecordPermission: () -> Unit, onBack: () -> Unit,
+    hasRecordPermission: Boolean, requestRecordPermission: () -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit,
     lyricsEnabled: Boolean, lyricsText: String, onLyricsChange: (String) -> Unit
 ) {
@@ -876,11 +875,9 @@ private fun FullPlayer(
             delay(400)
         }
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
-            Text("NOW PLAYING", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp, modifier = Modifier.weight(1f))
-            IconButton(onClick = { showDetails = true }) { Icon(Icons.Default.Info, "Rincian lagu", tint = Mint) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) {
+            Text("NOW PLAYING", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp)
         }
         if (showDetails) {
             val currentUri = player.currentMediaItem?.localConfiguration?.uri ?: track?.uri
@@ -894,7 +891,7 @@ private fun FullPlayer(
         }
         Spacer(Modifier.height(12.dp))
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
-            val coverSize = maxWidth.coerceAtMost(300.dp)
+            val coverSize = maxWidth.coerceAtMost(210.dp)
             Box(Modifier.size(coverSize).clip(RoundedCornerShape(28.dp))
                 .background(Brush.linearGradient(listOf(Color(0xAA42677A), Color(0xAA17263D))))
                 .border(1.dp, Color.White.copy(alpha = .20f), RoundedCornerShape(28.dp)).padding(9.dp)) {
@@ -902,14 +899,17 @@ private fun FullPlayer(
                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(21.dp)))
             }
         }
-        Spacer(Modifier.height(24.dp))
-        Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            IconButton(onClick = { showDetails = true }) { Icon(Icons.Default.Info, "Rincian lagu", tint = Mint) }
+        }
         Text(track?.artist ?: metadata?.artist?.toString() ?: "Online stream", color = Muted, fontSize = 14.sp)
         Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
         track?.composer?.takeIf { it.isNotBlank() }?.let { Text("Composer: $it", color = Muted, fontSize = 10.sp) }
         Spacer(Modifier.height(22.dp))
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = .045f)).padding(horizontal = 12.dp, vertical = 10.dp)) {
-            SpectrumRenderer(spectrum, spectrumStyle, Modifier.fillMaxWidth().height(100.dp))
+            SpectrumRenderer(spectrum, spectrumStyle, Modifier.fillMaxWidth().height(64.dp))
         }
         Text(spectrumStatus, color = if (spectrumStatus.contains("LIVE")) Mint else Muted, fontSize = 10.sp)
         if (!hasRecordPermission) TextButton(onClick = requestRecordPermission) { Text("Izinkan akses audio untuk spectrum", color = Mint) }
@@ -942,9 +942,9 @@ private fun FullPlayer(
                     Text("Tersimpan otomatis", color = Muted, fontSize = 10.sp)
                 }
                 Spacer(Modifier.height(10.dp))
-                OutlinedTextField(value = lyricsText, onValueChange = onLyricsChange, modifier = Modifier.fillMaxWidth().heightIn(min = 110.dp),
+                OutlinedTextField(value = lyricsText, onValueChange = onLyricsChange, modifier = Modifier.fillMaxWidth().height(76.dp),
                     placeholder = { Text("Tempel atau tulis lirik lagu di sini…", color = Muted) },
-                    colors = fieldColors(), shape = RoundedCornerShape(14.dp), minLines = 4)
+                    colors = fieldColors(), shape = RoundedCornerShape(14.dp), minLines = 2, maxLines = 3)
                 Text("Lirik disimpan per lagu di perangkat. Isi manual; aplikasi tidak mengambil lirik berhak cipta dari sumber tidak resmi.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
             }
         }
