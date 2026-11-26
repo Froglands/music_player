@@ -1758,6 +1758,61 @@ private fun SettingsScreen(
                     Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
                 }
             }
+            "audio" -> {
+                var focusEnabled by rememberSaveable { mutableStateOf(true) }
+                var gaplessEnabled by rememberSaveable { mutableStateOf(true) }
+                var skipSilenceEnabled by rememberSaveable { mutableStateOf(false) }
+                var speed by rememberSaveable { mutableFloatStateOf(1f) }
+                var pitch by rememberSaveable { mutableFloatStateOf(1f) }
+                var repeatMode by rememberSaveable { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
+                LaunchedEffect(Unit) {
+                    focusEnabled = preferences.getBoolean("audio_focus", true)
+                    gaplessEnabled = preferences.getBoolean("gapless_playback", true)
+                    skipSilenceEnabled = preferences.getBoolean("skip_silence", false)
+                    speed = preferences.getFloat("playback_speed", 1f)
+                    pitch = preferences.getFloat("playback_pitch", 1f)
+                    repeatMode = preferences.getInt("repeat_mode", Player.REPEAT_MODE_OFF)
+                }
+                LaunchedEffect(focusEnabled) {
+                    val attrs = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
+                    player.setAudioAttributes(attrs, focusEnabled)
+                    preferences.edit().putBoolean("audio_focus", focusEnabled).apply()
+                }
+                LaunchedEffect(gaplessEnabled) {
+                    player.setPauseAtEndOfMediaItems(!gaplessEnabled)
+                    preferences.edit().putBoolean("gapless_playback", gaplessEnabled).apply()
+                }
+                LaunchedEffect(skipSilenceEnabled) {
+                    player.skipSilenceEnabled = skipSilenceEnabled
+                    preferences.edit().putBoolean("skip_silence", skipSilenceEnabled).apply()
+                }
+                LaunchedEffect(speed, pitch) {
+                    player.playbackParameters = PlaybackParameters(speed, pitch)
+                    preferences.edit().putFloat("playback_speed", speed).putFloat("playback_pitch", pitch).apply()
+                }
+                LaunchedEffect(repeatMode) {
+                    player.repeatMode = repeatMode
+                    preferences.edit().putInt("repeat_mode", repeatMode).apply()
+                }
+                Text("Pengaturan mesin pemutar. EQ dan Bass Boost tetap berada di tab EQ.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(12.dp))
+                AudioSettingSwitch("Audio Focus", "Mengelola fokus audio saat aplikasi lain berbunyi.", focusEnabled) { focusEnabled = it }
+                AudioSettingSwitch("Gapless Playback", "Mengurangi jeda antar-track dalam antrean.", gaplessEnabled) { gaplessEnabled = it }
+                AudioSettingSwitch("Skip Silence", "Melewati bagian hening pada format yang didukung decoder.", skipSilenceEnabled) { skipSilenceEnabled = it }
+                Spacer(Modifier.height(10.dp))
+                Text("PLAYBACK SPEED  " + "%.2f".format(speed) + "×", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Slider(value = speed, onValueChange = { speed = it }, valueRange = .5f..2f)
+                Text("PITCH  " + "%.2f".format(pitch) + "×", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Slider(value = pitch, onValueChange = { pitch = it }, valueRange = .5f..2f)
+                Text("REPEAT MODE", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf("Off" to Player.REPEAT_MODE_OFF, "All" to Player.REPEAT_MODE_ALL, "One" to Player.REPEAT_MODE_ONE).forEach { (label, value) ->
+                        FilterChip(selected = repeatMode == value, onClick = { repeatMode = value }, label = { Text(label) })
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("Crossfade, ReplayGain, limiter, stereo widening, dan loudness normalization membutuhkan DSP tambahan. Fitur tersebut belum saya tampilkan sebagai kontrol aktif agar tidak menyesatkan.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            }
             "download" -> {
                 Text("Preferensi kualitas untuk sumber yang menyediakan beberapa varian. URL file langsung tetap diunduh sesuai kualitas asli sumber.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(18.dp))
@@ -1913,6 +1968,16 @@ private fun SettingsScreen(
     }
 }
 
+@Composable
+private fun AudioSettingSwitch(title: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(description, color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
 @Composable
 private fun EqualizerScreen(
     enabled: Boolean, onEnabled: (Boolean) -> Unit, levels: List<Float>, onLevel: (Int, Float) -> Unit,
