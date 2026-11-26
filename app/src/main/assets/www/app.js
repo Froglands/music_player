@@ -18,8 +18,8 @@
   $("spectrum-style").addEventListener("change", e => document.body.dataset.spectrum = e.target.value);
   $("search").addEventListener("input", e => window.MusicNative?.searchTracks?.(e.target.value));
   $("play-url").addEventListener("click", () => window.MusicNative?.playUrl?.($("stream-url").value.trim()));
-  $("request-audio").addEventListener("click", () => window.MusicNative?.requestAudioPermission?.());
-  $("request-record").addEventListener("click", () => window.MusicNative?.requestRecordPermission?.());
+  $("request-audio")?.addEventListener("click", () => window.MusicNative?.requestAudioPermission?.());
+  $("request-record")?.addEventListener("click", () => window.MusicNative?.requestRecordPermission?.());
   $("toggle-play").addEventListener("click", () => window.MusicNative?.togglePlayback?.());
   $("mini-toggle").addEventListener("click", () => window.MusicNative?.togglePlayback?.());
   $("previous").addEventListener("click", () => window.MusicNative?.previous?.());
