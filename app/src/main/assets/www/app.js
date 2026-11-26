@@ -35,6 +35,52 @@
   $("lyrics-enabled").addEventListener("change", e => window.MusicNative?.setLyricsEnabled?.(e.target.checked));
   ["language","visual-style","theme","spectrum-style","audio-quality","video-quality"].forEach(id => $(id).addEventListener("change", e => window.MusicNative?.setPreference?.(id,e.target.value)));
   $("eq-bands").addEventListener("change", e => { if(e.target.matches("[data-band]")) window.MusicNative?.setEqBand?.(Number(e.target.dataset.band),Number(e.target.value)); });
+  // CSS-native select sheet: avoids Android WebView's bright platform popup.
+  document.querySelectorAll(".setting-row select").forEach(select => {
+    const wrap = document.createElement("div");
+    wrap.className = "select-wrap";
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "select-trigger";
+    trigger.textContent = select.selectedOptions[0]?.textContent || "";
+    const sync = () => { trigger.textContent = select.selectedOptions[0]?.textContent || ""; };
+    select.after(wrap);
+    wrap.appendChild(trigger);
+    select.classList.add("select-source");
+    const open = () => {
+      document.querySelector(".select-sheet-backdrop")?.remove();
+      const backdrop = document.createElement("div");
+      backdrop.className = "select-sheet-backdrop";
+      const sheet = document.createElement("div");
+      sheet.className = "select-sheet";
+      const heading = document.createElement("div");
+      heading.className = "select-sheet-title";
+      heading.textContent = select.closest(".setting-row")?.querySelector("strong")?.textContent || "Pilih";
+      sheet.appendChild(heading);
+      [...select.options].forEach(option => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "select-option" + (option.value === select.value ? " selected" : "");
+        item.textContent = option.textContent;
+        const mark = document.createElement("span");
+        mark.textContent = option.value === select.value ? "●" : "○";
+        item.appendChild(mark);
+        item.addEventListener("click", () => {
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          sync();
+          backdrop.remove();
+        });
+        sheet.appendChild(item);
+      });
+      backdrop.appendChild(sheet);
+      backdrop.addEventListener("click", e => { if (e.target === backdrop) backdrop.remove(); });
+      document.body.appendChild(backdrop);
+    };
+    trigger.addEventListener("click", open);
+    select.addEventListener("change", sync);
+    wrap.appendChild(select);
+  });
   window.MusicUI = {
     navigate,
     setTracks(items) {
