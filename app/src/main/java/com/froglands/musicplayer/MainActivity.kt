@@ -98,7 +98,7 @@ private enum class VisualStyle(val label: String, val description: String) {
     AURORA("Aurora", "Gradasi warna lembut"),
     MINIMAL("Minimal", "Tampilan sederhana dan bersih")
 }
-private val SupportedAppLanguages = listOf("id", "en", "es", "fr", "de", "pt", "ja", "ko", "zh", "ar", "hi", "ru")
+private val SupportedAppLanguages = listOf("id", "en", "es", "fr", "de", "pt")
 private val AppTranslations = mapOf(
 "settings" to listOf("Pengaturan","Settings","Ajustes","Paramètres","Einstellungen","Configurações","設定","설정","设置","الإعدادات","सेटिंग्स","Настройки"),
 "settings_sub" to listOf("Atur pengalaman musikmu","Customize your music experience","Personaliza tu música","Personnalisez votre musique","Passe dein Musikerlebnis an","Personalize sua música","音楽体験をカスタマイズ","음악 환경 설정","自定义音乐体验","خصص تجربة الموسيقى","अपने संगीत अनुभव को अनुकूलित करें","Настройте музыку"),
@@ -1064,7 +1064,7 @@ private fun SettingsScreen(
         }
         @Composable
         fun settingsCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
-            Row(Modifier.fillMaxWidth().shadow(visualCardElevation(), RoundedCornerShape(18.dp), clip = false)
+            Row(Modifier.fillMaxWidth().shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 14.dp else 0.dp, RoundedCornerShape(18.dp), clip = false)
                 .clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush())
                 .border(if (activeVisualStyle.value == VisualStyle.THREE_D) 1.5.dp else 1.dp, Color.White.copy(alpha = if (activeVisualStyle.value == VisualStyle.THREE_D) .30f else .10f), RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
