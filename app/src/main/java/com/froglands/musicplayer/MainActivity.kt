@@ -821,7 +821,11 @@ private fun MusicPlayerApp(
                         onSeekBarStyleSelected = { style -> seekBarStyle = style; preferences.edit().putString("seekbar_style", style.name).apply() },
                         lyricsEnabled = lyricsEnabled,
                         onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() },
-                        tracks = tracks, lyricsText = lyricsText,
+                        tracks = tracks, lyricsText = lyricsText, selectedLyricsTrackId = lyricsTargetId,
+                        onLyricsTrackSelected = { id ->
+                            lyricsTargetId = id
+                            lyricsText = preferences.getString("lyrics_${id}", "") ?: ""
+                        },
                         onLyricsTextChange = { value ->
                             lyricsText = value
                             if (lyricsTargetId > 0L) preferences.edit().putString("lyrics_${lyricsTargetId}", value).apply()
@@ -1517,7 +1521,7 @@ private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
 private fun SettingsScreen(
     spectrum: List<Float>, selectedStyle: SpectrumStyle, seekBarStyle: SeekBarStyle, onStyleSelected: (SpectrumStyle) -> Unit, onSeekBarStyleSelected: (SeekBarStyle) -> Unit,
     lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit,
-    tracks: List<Track>, lyricsText: String, onLyricsTextChange: (String) -> Unit,
+    tracks: List<Track>, lyricsText: String, selectedLyricsTrackId: Long, onLyricsTrackSelected: (Long) -> Unit, onLyricsTextChange: (String) -> Unit,
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
@@ -1677,13 +1681,46 @@ private fun SettingsScreen(
                     Spacer(Modifier.height(9.dp))
                 }
             }
-            "lyrics" -> Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .055f)).padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
-                    Text("Tampilkan lirik", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("Tampilkan atau sembunyikan panel lirik di Now Playing.", color = Muted, fontSize = 11.sp)
+            "lyrics" -> {
+                Text("Pilih lagu dari koleksi, lalu tulis atau tempel lirik. Lirik disimpan per lagu dan otomatis muncul di Now Playing.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(12.dp))
+                var lyricSearch by rememberSaveable { mutableStateOf("") }
+                val targetTrack = tracks.firstOrNull { it.id == selectedLyricsTrackId }
+                OutlinedTextField(value = lyricSearch, onValueChange = { lyricSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    placeholder = { Text("Cari judul, artis, atau album") }, leadingIcon = { Icon(Icons.Default.Search, null) }, colors = fieldColors())
+                Spacer(Modifier.height(8.dp))
+                Text(if (targetTrack == null) "PILIH LAGU" else "EDIT: ${targetTrack.title}", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 240.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(tracks.filter { it.title.contains(lyricSearch, true) || it.artist.contains(lyricSearch, true) || it.album.contains(lyricSearch, true) }, key = { it.id }) { item ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(if (selectedLyricsTrackId == item.id) Mint.copy(alpha = .12f) else visualSurfaceBrush())
+                            .clickable { onLyricsTrackSelected(item.id) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, color = OnSurface, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(item.artist, color = Muted, fontSize = 10.sp)
+                            }
+                            Text(if (selectedLyricsTrackId == item.id) "Dipilih" else "Pilih", color = if (selectedLyricsTrackId == item.id) Mint else Muted, fontSize = 10.sp)
+                        }
+                    }
                 }
-                Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
+                if (targetTrack != null) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(value = lyricsText, onValueChange = onLyricsTextChange,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 320.dp), minLines = 6, maxLines = 14,
+                        placeholder = { Text("Tempel lirik biasa atau format LRC dengan timestamp…") }, colors = fieldColors())
+                    Text("Autosave aktif • Format [mm:ss.xx] menyelaraskan lirik dengan waktu lagu.", color = Muted, fontSize = 10.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { onLyricsTextChange("") }) { Text("Kosongkan", color = Color(0xFFFF7777)) }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Tampilkan lirik di Now Playing", color = OnSurface, fontWeight = FontWeight.Bold)
+                        Text("Now Playing hanya membaca; pengeditan tetap di halaman ini.", color = Muted, fontSize = 11.sp)
+                    }
+                    Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
+                }
             }
             "download" -> {
                 Text("Preferensi kualitas untuk sumber yang menyediakan beberapa varian. URL file langsung tetap diunduh sesuai kualitas asli sumber.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
