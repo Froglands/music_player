@@ -26,7 +26,6 @@
   $("next").addEventListener("click", () => window.MusicNative?.next?.());
   $("seek").addEventListener("change", e => window.MusicNative?.seekTo?.(Number(e.target.value)));
   $("lyrics").addEventListener("change", e => window.MusicNative?.saveLyrics?.(e.target.value));
-  $("check-updates").addEventListener("click", () => window.MusicNative?.checkUpdates?.());
   $("track-info").addEventListener("click", () => window.MusicNative?.showTrackInfo?.());
   $("check-updates").addEventListener("click", () => window.MusicNative?.checkUpdates?.());
   $("eq-enabled").addEventListener("change", e => window.MusicNative?.setEqualizerEnabled?.(e.target.checked));
