@@ -580,6 +580,22 @@ private fun MusicPlayerApp(
                             selectedTheme = name
                             activePalette.value = AppPalettes.first { it.name == name }
                             preferences.edit().putString("app_theme", name).apply()
+                        },
+                        selectedLanguage = selectedLanguage,
+                        onLanguageSelected = { tag ->
+                            selectedLanguage = tag
+                            preferences.edit().putString("app_language", tag).apply()
+                            val locale = if (tag == "auto") Locale.getDefault() else Locale.forLanguageTag(tag)
+                            Locale.setDefault(locale)
+                            val configuration = appContext.resources.configuration
+                            configuration.setLocale(locale)
+                            appContext.resources.updateConfiguration(configuration, appContext.resources.displayMetrics)
+                        },
+                        selectedVisualStyle = selectedVisualStyle,
+                        onVisualStyleSelected = { name ->
+                            selectedVisualStyle = name
+                            activeVisualStyle.value = VisualStyle.valueOf(name)
+                            preferences.edit().putString("visual_style", name).apply()
                         }
                     )
                 }
@@ -980,12 +996,16 @@ private fun SettingsScreen(
     spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit,
     lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit,
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
-    selectedTheme: String, onThemeSelected: (String) -> Unit
+    selectedTheme: String, onThemeSelected: (String) -> Unit,
+    selectedLanguage: String, onLanguageSelected: (String) -> Unit,
+    selectedVisualStyle: String, onVisualStyleSelected: (String) -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf("") }
+    BackHandler(enabled = section.isNotEmpty()) { section = "" }
     val pageTitle = when (section) {
         "theme" -> "Tema aplikasi"; "visualizer" -> "Visualizer"; "lyrics" -> "Lirik"
-        "download" -> "Kualitas unduhan"; "credits" -> "Tentang & Kredit"; else -> "Pengaturan"
+        "download" -> "Kualitas unduhan"; "credits" -> "Tentang & Kredit"
+        "language" -> "Bahasa"; "appearance" -> "Gaya tampilan"; else -> "Pengaturan"
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
         if (section.isNotEmpty()) {
@@ -1030,6 +1050,10 @@ private fun SettingsScreen(
                 settingsCard(Icons.Default.Lyrics, "Lirik", if (lyricsEnabled) "Panel lirik aktif di Now Playing" else "Panel lirik sedang nonaktif") { section = "lyrics" }
                 Spacer(Modifier.height(10.dp))
                 settingsCard(Icons.Default.Download, "Kualitas unduhan", "Audio $audioQuality • Video $videoQuality") { section = "download" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.Translate, "Bahasa", if (selectedLanguage == "auto") "Otomatis mengikuti bahasa perangkat" else Locale.forLanguageTag(selectedLanguage).getDisplayName(Locale.getDefault())) { section = "language" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.ViewInAr, "Gaya tampilan", "$selectedVisualStyle • Glass, 3D, Neon, Aurora") { section = "appearance" }
                 Spacer(Modifier.height(10.dp))
                 settingsCard(Icons.Default.Info, "Tentang & Kredit", "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
             }
@@ -1112,6 +1136,62 @@ private fun SettingsScreen(
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).clickable { onVideoQuality(quality) }.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(quality, color = Color.White, modifier = Modifier.weight(1f))
                         Icon(if (videoQuality == quality) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = if (videoQuality == quality) Mint else Muted)
+                    }
+                }
+            }
+            "language" -> {
+                val locales = remember {
+                    Locale.getAvailableLocales().filter { it.language.isNotBlank() && it.getDisplayName(it).isNotBlank() }
+                        .distinctBy { it.language }.sortedBy { it.getDisplayName(it) }
+                }
+                Text("Otomatis mengikuti bahasa sistem atau pilih bahasa secara manual. Daftar mengikuti locale yang tersedia di Android.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(visualSurfaceBrush()).clickable { onLanguageSelected("auto") }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Otomatis / System default", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Ikuti bahasa perangkat", color = Muted, fontSize = 11.sp)
+                    }
+                    Icon(if (selectedLanguage == "auto") Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = Mint)
+                }
+                Spacer(Modifier.height(8.dp))
+                locales.forEach { locale ->
+                    val tag = locale.toLanguageTag()
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onLanguageSelected(tag) }.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(locale.getDisplayName(locale).replaceFirstChar { it.uppercase(locale) }, color = Color.White, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Text(locale.language.uppercase(), color = Muted, fontSize = 10.sp)
+                        if (selectedLanguage == tag) Icon(Icons.Default.Check, null, tint = Mint, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+            "appearance" -> {
+                Text("Pilih karakter visual seluruh antarmuka. Perubahan diterapkan langsung.", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(14.dp))
+                VisualStyle.values().forEach { style ->
+                    val active = selectedVisualStyle == style.name
+                    val cardBrush = when (style) {
+                        VisualStyle.GLASS -> Brush.linearGradient(listOf(Color.White.copy(alpha = .16f), Panel.copy(alpha = .75f)))
+                        VisualStyle.THREE_D -> Brush.verticalGradient(listOf(Color(0xFF526783), Panel, Color(0xFF070B13)))
+                        VisualStyle.NEON -> Brush.linearGradient(listOf(Mint.copy(alpha = .28f), Panel))
+                        VisualStyle.AURORA -> Brush.linearGradient(listOf(Color(0xFF315C67), Color(0xFF33274D), Panel))
+                        VisualStyle.MINIMAL -> Brush.linearGradient(listOf(Panel, Panel))
+                    }
+                    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(RoundedCornerShape(20.dp))
+                        .background(cardBrush).border(if (active) 2.dp else 1.dp, if (active) Mint else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
+                        .clickable { onVisualStyleSelected(style.name) }.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(style.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                            if (active) Icon(Icons.Default.CheckCircle, null, tint = Mint)
+                        }
+                        Text(style.description, color = Color.White.copy(alpha = .75f), fontSize = 11.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            repeat(3) { index ->
+                                Box(Modifier.weight(1f).height(if (style == VisualStyle.THREE_D) 25.dp else 18.dp)
+                                    .clip(RoundedCornerShape(if (style == VisualStyle.THREE_D) 5.dp else 12.dp))
+                                    .background(if (index == 1) Mint.copy(alpha = .75f) else Color.White.copy(alpha = .10f))
+                                    .border(1.dp, Color.White.copy(alpha = .18f), RoundedCornerShape(12.dp)))
+                            }
+                        }
                     }
                 }
             }
