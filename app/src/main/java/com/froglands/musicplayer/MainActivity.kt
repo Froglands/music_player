@@ -2,6 +2,13 @@ package com.froglands.musicplayer
 
 import android.Manifest
 import android.app.PendingIntent
+import android.app.DownloadManager
+import android.content.Context
+import android.os.Environment
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.content.ContentUris
 import android.graphics.BitmapFactory
@@ -75,6 +82,58 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.*
+
+
+private data class AppUpdateInfo(val version: String, val notes: String, val apkUrl: String)
+
+private suspend fun fetchLatestAppUpdate(currentVersion: String): AppUpdateInfo? = withContext(Dispatchers.IO) {
+    val connection = (URL("https://api.github.com/repos/Froglands/music_player/releases/latest").openConnection() as HttpURLConnection).apply {
+        connectTimeout = 12000
+        readTimeout = 12000
+        requestMethod = "GET"
+        setRequestProperty("Accept", "application/vnd.github+json")
+        setRequestProperty("User-Agent", "Froglands-MusicPlayer-Android")
+    }
+    try {
+        if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+            throw IllegalStateException(if (connection.responseCode == 404) "Belum ada rilis resmi yang tersedia." else "Gagal memeriksa pembaruan (HTTP ${connection.responseCode}).")
+        }
+        val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        val tag = json.optString("tag_name").removePrefix("v").trim()
+        val assetArray = json.optJSONArray("assets") ?: throw IllegalStateException("Rilis belum menyertakan file APK.")
+        var apkUrl = ""
+        for (i in 0 until assetArray.length()) {
+            val asset = assetArray.getJSONObject(i)
+            if (asset.optString("name").endsWith(".apk", ignoreCase = true)) {
+                apkUrl = asset.optString("browser_download_url")
+                break
+            }
+        }
+        if (apkUrl.isBlank()) throw IllegalStateException("File APK belum tersedia pada rilis terbaru.")
+        val latestParts = tag.split(".").map { it.toIntOrNull() ?: 0 }
+        val currentParts = currentVersion.split(".").map { it.toIntOrNull() ?: 0 }
+        val maxParts = maxOf(latestParts.size, currentParts.size)
+        var comparison = 0
+        for (i in 0 until maxParts) {
+            val diff = (latestParts.getOrElse(i) { 0 }).compareTo(currentParts.getOrElse(i) { 0 })
+            if (diff != 0) { comparison = diff; break }
+        }
+        if (comparison <= 0) null else AppUpdateInfo(tag, json.optString("body", "Pembaruan terbaru tersedia."), apkUrl)
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private fun downloadAppUpdate(context: Context, update: AppUpdateInfo) {
+    val request = DownloadManager.Request(Uri.parse(update.apkUrl))
+        .setTitle("Music Player v${update.version}")
+        .setDescription("Mengunduh pembaruan aplikasi")
+        .setMimeType("application/vnd.android.package-archive")
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "MusicPlayer-${update.version}.apk")
+    val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    manager.enqueue(request)
+}
 
 private data class AppPalette(val name: String, val background: Color, val panel: Color, val accent: Color, val muted: Color)
 private val AppPalettes = listOf(
@@ -1042,7 +1101,7 @@ private fun SettingsScreen(
     BackHandler(enabled = section.isNotEmpty()) { section = "" }
     val pageTitle = when (section) {
         "theme" -> tx("theme"); "visualizer" -> tx("visualizer"); "lyrics" -> tx("lyrics")
-        "download" -> tx("downloads"); "credits" -> tx("credits")
+        "download" -> tx("downloads"); "credits" -> tx("credits"); "updates" -> "Pembaruan aplikasi"
         "language" -> tx("language"); "appearance" -> tx("appearance"); else -> tx("settings")
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
@@ -1094,7 +1153,7 @@ private fun SettingsScreen(
                 Spacer(Modifier.height(10.dp))
                 settingsCard(Icons.Default.ViewInAr, tx("appearance"), "$selectedVisualStyle • Glass, 3D, Neon, Aurora") { section = "appearance" }
                 Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.Info, tx("credits"), "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
+                settingsCard(Icons.Default.SystemUpdate, "Pembaruan aplikasi", "Periksa versi terbaru dan unduh APK") { section = "updates" }\n                Spacer(Modifier.height(10.dp))\n                settingsCard(Icons.Default.Info, tx("credits"), "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
             }
             "theme" -> {
                 Text("Pilih salah satu dari ${AppPalettes.size} kombinasi warna. Perubahan langsung diterapkan.", color = Muted, fontSize = 12.sp)
@@ -1230,6 +1289,63 @@ private fun SettingsScreen(
                         }
                     }
                 }
+            }
+
+            "updates" -> {
+                val context = LocalContext.current
+                var checking by remember { mutableStateOf(false) }
+                var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+                var updateMessage by remember { mutableStateOf("Versi terpasang: v$appVersion") }
+                var checked by remember { mutableStateOf(false) }
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush())
+                    .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp)).padding(16.dp)) {
+                    Text("Versi saat ini", color = Muted, fontSize = 12.sp)
+                    Text("v$appVersion", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text(updateMessage, color = if (updateInfo != null) Mint else Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                    if (updateInfo != null) {
+                        Spacer(Modifier.height(12.dp))
+                        Text("Versi terbaru: v${updateInfo!!.version}", color = Mint, fontWeight = FontWeight.Bold)
+                        Text(updateInfo!!.notes.ifBlank { "Tidak ada catatan rilis." }, color = Color.White, fontSize = 12.sp, lineHeight = 18.sp)
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Button(onClick = {
+                        checking = true
+                        updateMessage = "Sedang memeriksa GitHub Releases..."
+                        kotlinx.coroutines.MainScope().launch {
+                            try {
+                                val found = fetchLatestAppUpdate(appVersion)
+                                updateInfo = found
+                                updateMessage = if (found == null) "Aplikasi sudah menggunakan versi terbaru." else "Pembaruan tersedia."
+                            } catch (e: Exception) {
+                                updateInfo = null
+                                updateMessage = e.message ?: "Tidak dapat memeriksa pembaruan."
+                            } finally { checking = false; checked = true }
+                        }
+                    }, enabled = !checking, modifier = Modifier.fillMaxWidth()) {
+                        if (checking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (checking) "Memeriksa..." else "Periksa pembaruan")
+                    }
+                    if (updateInfo != null) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = {
+                            try {
+                                downloadAppUpdate(context, updateInfo!!)
+                                updateMessage = "Unduhan dimulai. Buka notifikasi unduhan untuk memasang APK."
+                            } catch (e: Exception) {
+                                updateMessage = "Gagal memulai unduhan: ${e.message}"
+                            }
+                        }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Download, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Unduh pembaruan")
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("Pembaruan diambil dari GitHub Releases resmi proyek. Setelah APK selesai diunduh, buka notifikasi unduhan untuk melanjutkan pemasangan. Android mungkin meminta izin instalasi dari sumber ini.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
             }
             "credits" -> {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .045f))
