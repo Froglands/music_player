@@ -51,6 +51,9 @@ class NativeMusicBridge(private val activity: MainActivity, private val web: Web
         refreshFiles()
     }
 
+    @JavascriptInterface fun requestAudioPermission() { activity.requestAudioPermissionFromWeb() }
+    @JavascriptInterface fun requestRecordPermission() { activity.requestRecordPermissionFromWeb() }
+    @JavascriptInterface fun tick() { pushState() }
     @JavascriptInterface fun scanTracks() {
         scope.launch {
             tracks = withContext(Dispatchers.IO) { readTracks() }
@@ -211,7 +214,7 @@ class NativeMusicBridge(private val activity: MainActivity, private val web: Web
             val e=eq ?: return
             val target=floatArrayOf(31f,63f,125f,250f,500f,1000f,2000f,4000f,8000f,10000f,12000f,16000f)
             val range=e.bandLevelRange
-            for(b in 0 until e.numberOfBands) {
+            for(b in 0 until e.numberOfBands.toInt()) {
                 val f=e.getCenterFreq(b.toShort())/1000f
                 val hi=target.indexOfFirst{it>=f}.let{if(it<0)11 else it}; val lo=(hi-1).coerceAtLeast(0)
                 val part=if(hi==lo)0f else (ln(f/target[lo])/ln(target[hi]/target[lo])).coerceIn(0f,1f)
