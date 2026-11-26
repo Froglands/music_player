@@ -12,8 +12,11 @@ import android.media.audiofx.Visualizer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import java.util.Locale
+import android.widget.Toast
 import android.provider.MediaStore
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -87,6 +90,21 @@ private val AppPalettes = listOf(
     AppPalette("Cyberpunk", Color(0xFF10091F), Color(0xFF21163A), Color(0xFFFF4DE1), Color(0xFFB5A0D4)),
     AppPalette("Lime", Color(0xFF101807), Color(0xFF253414), Color(0xFFC5F45B), Color(0xFFB3C58C))
 )
+private enum class VisualStyle(val label: String, val description: String) {
+    GLASS("Glass", "Lapisan transparan dan efek kaca"),
+    THREE_D("3D Depth", "Panel timbul dengan highlight dan kedalaman"),
+    NEON("Neon", "Aksen terang dan kontras tinggi"),
+    AURORA("Aurora", "Gradasi warna lembut"),
+    MINIMAL("Minimal", "Tampilan sederhana dan bersih")
+}
+private val activeVisualStyle = mutableStateOf(VisualStyle.GLASS)
+private fun visualSurfaceBrush(): Brush = when (activeVisualStyle.value) {
+    VisualStyle.GLASS -> Brush.linearGradient(listOf(Color.White.copy(alpha = .12f), Panel.copy(alpha = .76f), Color.White.copy(alpha = .035f)))
+    VisualStyle.THREE_D -> Brush.verticalGradient(listOf(Color(0xFF526783), Panel, Color(0xFF080D18)))
+    VisualStyle.NEON -> Brush.linearGradient(listOf(Mint.copy(alpha = .25f), Panel, Color(0xFF080D18)))
+    VisualStyle.AURORA -> Brush.linearGradient(listOf(Mint.copy(alpha = .20f), Color(0xFF26304A), Panel))
+    VisualStyle.MINIMAL -> Brush.linearGradient(listOf(Panel, Panel))
+}
 private val activePalette = mutableStateOf(AppPalettes.first())
 private val Ink get() = activePalette.value.background
 private val Panel get() = activePalette.value.panel
@@ -239,6 +257,15 @@ private fun MusicPlayerApp(
     var libraryScrollOffset by rememberSaveable { mutableIntStateOf(0) }
     var lyricsEnabled by rememberSaveable { mutableStateOf(true) }
     var selectedTheme by rememberSaveable { mutableStateOf("Midnight") }
+    var selectedVisualStyle by rememberSaveable { mutableStateOf(VisualStyle.GLASS.name) }
+    var selectedLanguage by rememberSaveable { mutableStateOf("auto") }
+    val screenHistory = remember { mutableStateListOf<Screen>() }
+    fun navigateTo(target: Screen) {
+        if (target != screen) {
+            screenHistory.add(screen)
+            screen = target
+        }
+    }
     val appContext = androidx.compose.ui.platform.LocalContext.current
     val preferences = remember { appContext.getSharedPreferences("music_player_preferences", android.content.Context.MODE_PRIVATE) }
     var lyricsText by remember { mutableStateOf("") }
@@ -253,6 +280,9 @@ private fun MusicPlayerApp(
         offlineFiles = offlineDirectory.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList()
         audioDownloadQuality = preferences.getString("download_audio_quality", "Original") ?: "Original"
         videoDownloadQuality = preferences.getString("download_video_quality", "720p") ?: "720p"
+        selectedVisualStyle = preferences.getString("visual_style", VisualStyle.GLASS.name) ?: VisualStyle.GLASS.name
+        activeVisualStyle.value = runCatching { VisualStyle.valueOf(selectedVisualStyle) }.getOrDefault(VisualStyle.GLASS)
+        selectedLanguage = preferences.getString("app_language", "auto") ?: "auto"
     }
     fun startPrivateDownload(url: String) {
         if (downloadBusy) return
@@ -290,6 +320,12 @@ private fun MusicPlayerApp(
     var bassEffect by remember { mutableStateOf<BassBoost?>(null) }
 
     LaunchedEffect(hasPermission) { if (hasPermission) tracks = loadTracks() }
+
+    BackHandler {
+        if (screenHistory.isNotEmpty()) screen = screenHistory.removeAt(screenHistory.lastIndex)
+        else if (screen != Screen.LIBRARY) navigateTo(Screen.LIBRARY)
+        else Toast.makeText(appContext, "Kamu sudah berada di halaman utama", Toast.LENGTH_SHORT).show()
+    }
 
     val updateAudioSessionId = rememberUpdatedState<(Int) -> Unit> { id -> audioSessionId = id }
 
@@ -482,7 +518,7 @@ private fun MusicPlayerApp(
                                                         .setAlbumTitle(item.album).build()
                                                 ).build()
                                             }, tracks.indexOf(track), 0L); player.prepare(); player.play()
-                                            screen = Screen.PLAYER
+                                            navigateTo(Screen.PLAYER)
                                         }, onDetails = { detailTrack = track })
                                     }
                                 }
@@ -517,7 +553,7 @@ private fun MusicPlayerApp(
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
                         lyricsEnabled = lyricsEnabled, lyricsText = lyricsText,
                         onLyricsChange = { lyricsText = it; preferences.edit().putString(lyricsKey, it).apply() },
-                        onBack = { screen = Screen.LIBRARY }, onEqualizer = { screen = Screen.EQUALIZER },
+                        onBack = { screen = Screen.LIBRARY }, onEqualizer = { navigateTo(Screen.EQUALIZER) },
                         onPrevious = {
                             val index = tracks.indexOfFirst { it.id == selected?.id }
                             if (index > 0) player.seekToPreviousMediaItem()
@@ -555,7 +591,7 @@ private fun MusicPlayerApp(
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xCC1B2940))
+                    .background(visualSurfaceBrush())
                     .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(22.dp))
                     .padding(horizontal = 4.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -574,7 +610,7 @@ private fun MusicPlayerApp(
                     Column(
                         Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
                             .background(if (active) Mint.copy(alpha = .16f) else Color.Transparent)
-                            .clickable { screen = target }
+                            .clickable { navigateTo(target) }
                             .padding(vertical = 7.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -638,7 +674,7 @@ private fun TrackDetailsDialog(track: Track, onDismiss: () -> Unit) {
 
 @Composable
 private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onToggle: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xCC27364D)).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush()).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Album, null, tint = Mint, modifier = Modifier.size(30.dp))
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(track?.title ?: "Belum ada lagu diputar", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
