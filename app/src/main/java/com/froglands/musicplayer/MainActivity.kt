@@ -229,9 +229,10 @@ private val OnSurface get() = if (activePalette.value.name == "Full Light") Colo
 private val TargetFrequencies = floatArrayOf(31f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 10000f, 12000f, 16000f)
 private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "10k", "12k", "16k")
 
-data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "", val storagePath: String = "")
+data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "", val storagePath: String = "", val fileSize: Long = 0L, val dateAdded: Long = 0L, val dateModified: Long = 0L)
 
 private enum class Screen { LIBRARY, ONLINE, OFFLINE, PLAYER, EQUALIZER, SETTINGS }
+private enum class LibrarySort(val label: String) { TITLE("Judul"), ARTIST("Artis"), ALBUM("Album"), DATE_ADDED("Tanggal ditambahkan"), DATE_MODIFIED("Tanggal diubah"), DURATION("Durasi"), YEAR("Tahun"), SIZE("Ukuran file") }
 private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Satu gelombang halus"), BARS("Bars", "Batang spektrum vertikal"), MIRROR("Mirror", "Batang tumbuh dari garis tengah"), CIRCULAR("Circular", "Spektrum radial penuh"), LINE("Line", "Kurva frekuensi tipis"), FILLED("Filled", "Area frekuensi terisi"), DOTS("Dots", "Partikel bulat mengikuti level"), POWERAMP("Poweramp", "Kolom LED bertingkat"), VU("VU Meter", "Dua meter analog dengan jarum"), MIRROR_WAVE("Twin Wave", "Dua kurva bergerak berlawanan"), SPECTRUM_3D("3D Spectrum", "Kolom perspektif berlapis"), ORBIT("Orbit", "Partikel mengitari cincin"), DIGITAL("Digital Matrix", "Grid LED bertingkat"), FIRE("Fire Bars", "Kolom dengan gradasi panas") }
 private enum class SeekBarStyle(val title: String, val description: String) { CLASSIC("Classic", "Track standar dengan thumb"), THIN("Thin Line", "Garis tipis minimalis"), ROUNDED("Rounded", "Track membulat modern"), CAPSULE("Capsule", "Progress tebal seperti pil"), GRADIENT("Gradient", "Warna aksen bergradasi"), WAVE("Wave", "Gelombang audio halus"), SEGMENTED("Segmented", "Garis bersegmen"), GLOW("Glow", "Aksen bercahaya"), DOTTED("Dotted", "Titik-titik progress"), DOUBLE("Double Line", "Dua garis bertumpuk"), RAINBOW("Rainbow", "Gradasi spektrum warna"), BLOCKS("Blocks", "Blok tebal modern"), NEEDLE("Needle", "Penunjuk posisi presisi"), GLASS("Glass", "Track kaca transparan"), DASHED("Dashed", "Garis putus-putus") }
 
@@ -313,7 +314,7 @@ class MainActivity : ComponentActivity() {
     private suspend fun queryTracks(): List<Track> = withContext(Dispatchers.IO) {
         val result = mutableListOf<Track>()
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.ALBUM_ARTIST, MediaStore.Audio.Media.YEAR, MediaStore.Audio.Media.TRACK, MediaStore.Audio.Media.COMPOSER, MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.MIME_TYPE)
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.ALBUM_ARTIST, MediaStore.Audio.Media.YEAR, MediaStore.Audio.Media.TRACK, MediaStore.Audio.Media.COMPOSER, MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.MIME_TYPE, MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DATE_ADDED, MediaStore.MediaColumns.DATE_MODIFIED)
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} > 0"
         contentResolver.query(collection, projection, selection, null, "${MediaStore.Audio.Media.DATE_ADDED} DESC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -329,6 +330,9 @@ class MainActivity : ComponentActivity() {
             val relativePathCol = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
             val dataPathCol = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
             val mimeCol = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
+            val sizeCol = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
+            val addedCol = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
+            val modifiedCol = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_MODIFIED)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 val duration = cursor.getLong(durationCol)
@@ -339,7 +343,10 @@ class MainActivity : ComponentActivity() {
                 val storagePath = if (absolutePath.isNotBlank()) absolutePath else relativePath
                 result += Track(id, cursor.getString(titleCol) ?: "Unknown title",
                     cursor.getString(artistCol)?.takeUnless { it == "<unknown>" } ?: "Unknown artist",
-                    ContentUris.withAppendedId(collection, id), duration, cursor.getString(albumCol) ?: "Unknown album", cursor.getString(albumArtistCol) ?: "", cursor.getLong(albumIdCol), cursor.getInt(yearCol), cursor.getInt(trackCol), cursor.getString(composerCol) ?: "", storagePath)
+                    ContentUris.withAppendedId(collection, id), duration, cursor.getString(albumCol) ?: "Unknown album", cursor.getString(albumArtistCol) ?: "", cursor.getLong(albumIdCol), cursor.getInt(yearCol), cursor.getInt(trackCol), cursor.getString(composerCol) ?: "", storagePath,
+                    if (sizeCol >= 0) cursor.getLong(sizeCol) else 0L,
+                    if (addedCol >= 0) cursor.getLong(addedCol) else 0L,
+                    if (modifiedCol >= 0) cursor.getLong(modifiedCol) else 0L)
             }
         }
         result
@@ -382,6 +389,9 @@ private fun MusicPlayerApp(
     var playing by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var selectedFolder by rememberSaveable { mutableStateOf("Semua lokasi") }
+    var librarySort by rememberSaveable { mutableStateOf(LibrarySort.DATE_ADDED.name) }
+    var sortAscending by rememberSaveable { mutableStateOf(false) }
+    var lyricsTargetId by rememberSaveable { mutableStateOf(-1L) }
     var onlineUrl by remember { mutableStateOf("") }
     var screen by rememberSaveable { mutableStateOf(Screen.LIBRARY) }
     var libraryScrollIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -415,6 +425,8 @@ private fun MusicPlayerApp(
     LaunchedEffect(Unit) {
         offlineFiles = offlineDirectory.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList()
         audioDownloadQuality = preferences.getString("download_audio_quality", "Original") ?: "Original"
+        librarySort = preferences.getString("library_sort", LibrarySort.DATE_ADDED.name) ?: LibrarySort.DATE_ADDED.name
+        sortAscending = preferences.getBoolean("library_sort_ascending", false)
         videoDownloadQuality = preferences.getString("download_video_quality", "720p") ?: "720p"
         selectedVisualStyle = preferences.getString("visual_style", VisualStyle.GLASS.name) ?: VisualStyle.GLASS.name
         activeVisualStyle.value = runCatching { VisualStyle.valueOf(selectedVisualStyle) }.getOrDefault(VisualStyle.GLASS)
@@ -435,6 +447,7 @@ private fun MusicPlayerApp(
     }
     val lyricsKey = selected?.let { "lyrics_${it.id}" } ?: player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { "lyrics_$it" } ?: "lyrics_empty"
     LaunchedEffect(lyricsKey) { lyricsText = preferences.getString(lyricsKey, "") ?: "" }
+    LaunchedEffect(lyricsTargetId, tracks) { if (lyricsTargetId > 0L) lyricsText = preferences.getString("lyrics_$lyricsTargetId", "") ?: "" }
     var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
     LaunchedEffect(Unit) {
         lyricsEnabled = preferences.getBoolean("lyrics_enabled", true)
