@@ -1449,7 +1449,7 @@ private fun SettingsScreen(
     fun tx(key: String) = appText(key, selectedLanguage)
     BackHandler(enabled = section.isNotEmpty()) { section = "" }
     val pageTitle = when (section) {
-        "theme" -> tx("theme"); "visualizer" -> tx("visualizer"); "seekbar" -> "Progress Bar"; "lyrics" -> tx("lyrics")
+        "theme" -> tx("theme"); "visualizer" -> tx("visualizer"); "seekbar" -> "Progress Bar"; "lyrics" -> tx("lyrics"); "audio" -> "Audio Engine"
         "download" -> tx("downloads"); "credits" -> tx("credits"); "updates" -> "Pembaruan aplikasi"
         "language" -> tx("language"); "appearance" -> tx("appearance"); else -> tx("settings")
     }
@@ -1498,6 +1498,8 @@ private fun SettingsScreen(
                     }
                 }
                 groupTitle("PEMUTAR & AUDIO", "Kontrol pemutaran dan efek suara")
+                settingsCard(Icons.Default.Equalizer, "Audio Engine", "12-Band EQ • Deep Bass • Preset audio") { section = "audio" }
+                Spacer(Modifier.height(8.dp))
                 settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya spektrum") { section = "visualizer" }
                 Spacer(Modifier.height(8.dp))
                 settingsCard(Icons.Default.LinearScale, "Progress Bar", "${seekBarStyle.title} • ${SeekBarStyle.values().size} gaya tampilan") { section = "seekbar" }
