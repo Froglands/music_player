@@ -682,7 +682,9 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 
 @Composable
 private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit, onDetails: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (active) Mint.copy(alpha = .13f) else Color.White.copy(alpha = .055f)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 12.dp else 0.dp, RoundedCornerShape(16.dp), clip = false)
+        .clip(RoundedCornerShape(16.dp)).background(if (active) Brush.verticalGradient(listOf(Mint.copy(alpha = .28f), visualSurfaceBrush().let { Panel })) else visualSurfaceBrush())
+        .border(if (activeVisualStyle.value == VisualStyle.THREE_D) 1.dp else 0.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(16.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(Panel), contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = Mint) }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
