@@ -1781,6 +1781,26 @@ private fun EqualizerScreen(
             }
             Switch(checked = enabled, onCheckedChange = onEnabled)
         }
+        Spacer(Modifier.height(12.dp))
+        Text("PRESET SOUND", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        val presets = listOf(
+            "Flat" to listOf(0f,0f,0f,0f,0f,0f,0f,0f,0f,0f,0f,0f),
+            "Bass" to listOf(6f,5f,4f,3f,2f,1f,0f,0f,0f,0f,0f,0f),
+            "Pop" to listOf(-1f,1f,3f,4f,2f,0f,-1f,-1f,1f,2f,2f,1f),
+            "Rock" to listOf(4f,3f,-1f,-2f,1f,3f,4f,4f,2f,1f,2f,3f),
+            "Vocal" to listOf(-2f,-1f,0f,2f,4f,4f,3f,1f,0f,1f,2f,2f),
+            "Classical" to listOf(4f,3f,2f,1f,-1f,-1f,0f,2f,3f,3f,4f,4f),
+            "Electronic" to listOf(4f,3f,1f,0f,-1f,2f,1f,0f,2f,3f,4f,4f),
+            "Dance" to listOf(5f,4f,2f,0f,0f,2f,3f,3f,2f,1f,1f,2f)
+        )
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            presets.forEach { (name, values) ->
+                AssistChip(onClick = { onEnabled(true); values.forEachIndexed { i, value -> onLevel(i, value) } }, label = { Text(name) })
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = { levels.indices.forEach { onLevel(it, 0f) }; onEnabled(false) }) { Text("RESET EQ", color = Mint) }
+        }
         Spacer(Modifier.height(14.dp))
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
