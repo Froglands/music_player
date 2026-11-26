@@ -418,6 +418,7 @@ private fun MusicPlayerApp(
     val appContext = androidx.compose.ui.platform.LocalContext.current
     val preferences = remember { appContext.getSharedPreferences("music_player_preferences", android.content.Context.MODE_PRIVATE) }
     var lyricsText by remember { mutableStateOf("") }
+    var editorLyricsText by remember { mutableStateOf("") }
     var offlineFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
     var downloadBusy by remember { mutableStateOf(false) }
     var downloadMessage by remember { mutableStateOf("") }
@@ -826,13 +827,13 @@ private fun MusicPlayerApp(
                         onSeekBarStyleSelected = { style -> seekBarStyle = style; preferences.edit().putString("seekbar_style", style.name).apply() },
                         lyricsEnabled = lyricsEnabled,
                         onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() },
-                        tracks = tracks, lyricsText = lyricsText, selectedLyricsTrackId = lyricsTargetId,
+                        tracks = tracks, lyricsText = editorLyricsText, selectedLyricsTrackId = lyricsTargetId,
                         onLyricsTrackSelected = { id ->
                             lyricsTargetId = id
-                            lyricsText = preferences.getString("lyrics_${id}", "") ?: ""
+                            editorLyricsText = preferences.getString("lyrics_${id}", "") ?: ""
                         },
                         onLyricsTextChange = { value ->
-                            lyricsText = value
+                            editorLyricsText = value
                             if (lyricsTargetId > 0L) preferences.edit().putString("lyrics_${lyricsTargetId}", value).apply()
                         },
                         audioQuality = audioDownloadQuality, videoQuality = videoDownloadQuality,
