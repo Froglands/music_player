@@ -266,6 +266,10 @@ private fun MusicPlayerApp(
             screen = target
         }
     }
+    fun goBack() {
+        if (screenHistory.isNotEmpty()) screen = screenHistory.removeAt(screenHistory.lastIndex)
+        else if (screen != Screen.LIBRARY) screen = Screen.LIBRARY
+    }
     val appContext = androidx.compose.ui.platform.LocalContext.current
     val preferences = remember { appContext.getSharedPreferences("music_player_preferences", android.content.Context.MODE_PRIVATE) }
     var lyricsText by remember { mutableStateOf("") }
