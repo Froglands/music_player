@@ -155,7 +155,9 @@ private val AppPalettes = listOf(
     AppPalette("Graphite", Color(0xFF101216), Color(0xFF20252D), Color(0xFFE3E8F0), Color(0xFFA3ACB9)),
     AppPalette("AMOLED Black", Color(0xFF000000), Color(0xFF101010), Color(0xFF53E0C1), Color(0xFF8B969F)),
     AppPalette("Slate Night", Color(0xFF0B1220), Color(0xFF182338), Color(0xFF79B8FF), Color(0xFF9EABC0)),
-    AppPalette("Nord Dark", Color(0xFF171C24), Color(0xFF252E3B), Color(0xFF88C0D0), Color(0xFF9BA9B8))
+    AppPalette("Nord Dark", Color(0xFF171C24), Color(0xFF252E3B), Color(0xFF88C0D0), Color(0xFF9BA9B8)),
+    AppPalette("Full Black", Color(0xFF000000), Color(0xFF080808), Color(0xFFFFA62B), Color(0xFF9A9A9A)),
+    AppPalette("Full Light", Color(0xFFF4F6FA), Color(0xFFFFFFFF), Color(0xFF246BCE), Color(0xFF687386))
 )
 private enum class VisualStyle(val label: String, val description: String) {
     GLASS("Glass", "Lapisan transparan dan efek kaca"),
@@ -221,13 +223,14 @@ private val Ink get() = activePalette.value.background
 private val Panel get() = activePalette.value.panel
 private val Mint get() = activePalette.value.accent
 private val Muted get() = activePalette.value.muted
+private val OnSurface get() = if (Ink.luminance() > .52f) Color(0xFF151A23) else Color.White
 private val TargetFrequencies = floatArrayOf(31f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 10000f, 12000f, 16000f)
 private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "10k", "12k", "16k")
 
 data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "", val storagePath: String = "")
 
 private enum class Screen { LIBRARY, ONLINE, OFFLINE, PLAYER, EQUALIZER, SETTINGS }
-private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris"), POWERAMP("Poweramp", "Batang spektrum bertingkat bergaya hi-fi"), VU("VU Meter", "Meter analog dua kanal"), MIRROR_WAVE("Twin Wave", "Gelombang simetris"), SPECTRUM_3D("3D Spectrum", "Batang berlapis"), ORBIT("Orbit", "Cincin audio radial"), DIGITAL("Digital", "Segmen digital"), FIRE("Fire Bars", "Batang dinamis bertingkat") }
+private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Satu gelombang halus"), BARS("Bars", "Batang spektrum vertikal"), MIRROR("Mirror", "Batang tumbuh dari garis tengah"), CIRCULAR("Circular", "Spektrum radial penuh"), LINE("Line", "Kurva frekuensi tipis"), FILLED("Filled", "Area frekuensi terisi"), DOTS("Dots", "Partikel bulat mengikuti level"), POWERAMP("Poweramp", "Kolom LED bertingkat"), VU("VU Meter", "Dua meter analog dengan jarum"), MIRROR_WAVE("Twin Wave", "Dua kurva bergerak berlawanan"), SPECTRUM_3D("3D Spectrum", "Kolom perspektif berlapis"), ORBIT("Orbit", "Partikel mengitari cincin"), DIGITAL("Digital Matrix", "Grid LED bertingkat"), FIRE("Fire Bars", "Kolom dengan gradasi panas") }
 private enum class SeekBarStyle(val title: String, val description: String) { CLASSIC("Classic", "Track standar dengan thumb"), THIN("Thin Line", "Garis tipis minimalis"), ROUNDED("Rounded", "Track membulat modern"), CAPSULE("Capsule", "Progress tebal seperti pil"), GRADIENT("Gradient", "Warna aksen bergradasi"), WAVE("Wave", "Gelombang audio halus"), SEGMENTED("Segmented", "Garis bersegmen"), GLOW("Glow", "Aksen bercahaya"), DOTTED("Dotted", "Titik-titik progress"), DOUBLE("Double Line", "Dua garis bertumpuk"), RAINBOW("Rainbow", "Gradasi spektrum warna"), BLOCKS("Blocks", "Blok tebal modern"), NEEDLE("Needle", "Penunjuk posisi presisi"), GLASS("Glass", "Track kaca transparan"), DASHED("Dashed", "Garis putus-putus") }
 
 class MainActivity : ComponentActivity() {
@@ -883,7 +886,7 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
         .border(1.dp, visualSurfaceBorderBrush(), RoundedCornerShape(18.dp)).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Album, null, tint = Mint, modifier = Modifier.size(30.dp))
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(track?.title ?: "Belum ada lagu diputar", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(track?.title ?: "Belum ada lagu diputar", color = OnSurface, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(track?.artist ?: "Ketuk untuk membuka pemutar", color = Muted, fontSize = 11.sp, maxLines = 1)
         }
         IconButton(onClick = onToggle) { Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Mint) }
@@ -1425,7 +1428,7 @@ private fun SettingsScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(Modifier.size(20.dp).clip(CircleShape).background(palette.accent))
                                     Spacer(Modifier.width(8.dp))
-                                    Text(palette.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    Text(palette.name, color = if (palette.background.luminance() > .52f) Color(0xFF151A23) else Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                                     if (active) { Spacer(Modifier.weight(1f)); Icon(Icons.Default.CheckCircle, null, tint = palette.accent, modifier = Modifier.size(16.dp)) }
                                 }
                                 Spacer(Modifier.height(10.dp))
@@ -1448,7 +1451,7 @@ private fun SettingsScreen(
                                 .border(1.dp, if (active) Mint.copy(alpha = .65f) else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
                                 .clickable { onStyleSelected(style) }.padding(12.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(style.title, color = if (active) Mint else Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(style.title, color = if (active) Mint else OnSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     if (active) Icon(Icons.Default.CheckCircle, null, tint = Mint, modifier = Modifier.size(17.dp))
                                 }
                                 Spacer(Modifier.height(8.dp))
