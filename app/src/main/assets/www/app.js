@@ -72,5 +72,7 @@
   };
   function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
   function formatTime(ms) { const s=Math.floor(Math.max(0,ms)/1000); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
-  window.MusicUI.setSpectrum(Array(28).fill(.03));\n  window.addEventListener("load",()=>window.MusicNative?.scanTracks?.());\n  setInterval(()=>window.MusicNative?.tick?.(),500);
+  window.MusicUI.setSpectrum(Array(28).fill(.03));
+  window.addEventListener("load",()=>window.MusicNative?.scanTracks?.());
+  setInterval(()=>window.MusicNative?.tick?.(),500);
 })();
