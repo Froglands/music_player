@@ -78,6 +78,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.session.MediaSession
 import androidx.media3.ui.PlayerNotificationManager
 import kotlinx.coroutines.Dispatchers
@@ -856,7 +859,7 @@ private fun MusicPlayerApp(
                             activeVisualStyle.value = VisualStyle.valueOf(name)
                             preferences.edit().putString("visual_style", name).apply()
                         },
-                        onOpenAudioEngine = { navigateTo(Screen.EQUALIZER) }
+                        player = player
                     )
                 }
             }
@@ -1558,7 +1561,7 @@ private fun SettingsScreen(
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
-    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, onOpenAudioEngine: () -> Unit
+    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, player: ExoPlayer
 ) {
     var section by rememberSaveable { mutableStateOf("") }
     fun tx(key: String) = appText(key, selectedLanguage)
