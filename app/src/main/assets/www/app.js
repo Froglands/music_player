@@ -18,12 +18,15 @@
   $("spectrum-style").addEventListener("change", e => document.body.dataset.spectrum = e.target.value);
   $("search").addEventListener("input", e => window.MusicNative?.searchTracks?.(e.target.value));
   $("play-url").addEventListener("click", () => window.MusicNative?.playUrl?.($("stream-url").value.trim()));
+  $("request-audio").addEventListener("click", () => window.MusicNative?.requestAudioPermission?.());
+  $("request-record").addEventListener("click", () => window.MusicNative?.requestRecordPermission?.());
   $("toggle-play").addEventListener("click", () => window.MusicNative?.togglePlayback?.());
   $("mini-toggle").addEventListener("click", () => window.MusicNative?.togglePlayback?.());
   $("previous").addEventListener("click", () => window.MusicNative?.previous?.());
   $("next").addEventListener("click", () => window.MusicNative?.next?.());
   $("seek").addEventListener("change", e => window.MusicNative?.seekTo?.(Number(e.target.value)));
   $("lyrics").addEventListener("change", e => window.MusicNative?.saveLyrics?.(e.target.value));
+  $("check-updates").addEventListener("click", () => window.MusicNative?.checkUpdates?.());
   $("track-info").addEventListener("click", () => window.MusicNative?.showTrackInfo?.());
   $("check-updates").addEventListener("click", () => window.MusicNative?.checkUpdates?.());
   $("eq-enabled").addEventListener("change", e => window.MusicNative?.setEqualizerEnabled?.(e.target.checked));
@@ -37,8 +40,11 @@
     navigate,
     setTracks(items) {
       $("track-count").textContent = items.length+" TRACKS";
-      $("track-list").innerHTML = items.map((t,i) => '<button class="setting-row track-item" data-index="'+i+'"><span><strong>'+escapeHtml(t.title)+'</strong><small>'+escapeHtml(t.artist)+'</small></span><span class="muted">▶</span></button>').join("");
+      $("track-list").innerHTML = items.length ? items.map(t => '<button class="setting-row track-item" data-index="'+t.index+'"><span><strong>'+escapeHtml(t.title)+'</strong><small>'+escapeHtml(t.artist)+'</small></span><span class="muted">▶</span></button>').join("") : '<div class="empty-state"><strong>Belum ada lagu ditemukan</strong><p>Periksa izin audio atau ubah pencarian.</p><button class="outline-button" id="request-audio">Izinkan akses audio</button></div>';
       $("track-list").querySelectorAll("[data-index]").forEach(button => button.addEventListener("click", () => window.MusicNative?.playTrack?.(Number(button.dataset.index))));
+      const paths=[...new Set(items.map(t => (t.path||"").split("/").slice(0,-1).join("/") || "Lokasi tidak diketahui"))];
+      $("folder-filters").innerHTML='<button class="chip selected" data-folder="all">Semua lokasi</button>'+paths.map(p=>'<button class="chip" data-folder="'+escapeHtml(p)+'">'+escapeHtml(p.split("/").pop()||p)+'</button>').join("");
+      $("folder-filters").querySelectorAll("[data-folder]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("#folder-filters .chip").forEach(x=>x.classList.toggle("selected",x===b));const q=$("search").value;window.MusicNative?.searchTracks?.(q,b.dataset.folder==="all"?"":b.dataset.folder)}));
     },
     setNowPlaying(track) {
       $("now-title").textContent = track.title || "Unknown title";
@@ -60,10 +66,11 @@
     setOfflineFiles(items) {
       $("offline-list").innerHTML = items.length ? items.map((f,i) => '<button class="setting-row" data-file="'+i+'"><span><strong>'+escapeHtml(f.name)+'</strong><small>Media tersimpan</small></span><span class="muted">▶</span></button>').join("") : '<div class="empty-state"><strong>Belum ada unduhan</strong><p>Media yang diunduh akan tampil di sini.</p></div>';
       $("offline-list").querySelectorAll("[data-file]").forEach(b => b.addEventListener("click", () => window.MusicNative?.playOffline?.(Number(b.dataset.file))));
+      $("offline-list").querySelectorAll("[data-delete]").forEach(b => b.addEventListener("click", e => {e.stopPropagation();window.MusicNative?.deleteOffline?.(Number(b.dataset.delete));}));
     },
     setStatus(id,value) { if($(id)) $(id).textContent = value; }
   };
   function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
   function formatTime(ms) { const s=Math.floor(Math.max(0,ms)/1000); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
-  window.MusicUI.setSpectrum(Array(28).fill(.03));
+  window.MusicUI.setSpectrum(Array(28).fill(.03));\n  window.addEventListener("load",()=>window.MusicNative?.scanTracks?.());\n  setInterval(()=>window.MusicNative?.tick?.(),500);
 })();
