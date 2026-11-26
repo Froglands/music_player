@@ -191,10 +191,14 @@ private fun appText(key: String, language: String): String {
 private val activeVisualStyle = mutableStateOf(VisualStyle.GLASS)
 private fun visualSurfaceBrush(): Brush = when (activeVisualStyle.value) {
     // Aero-inspired glass: cool translucent tint, bright upper reflection and a darker lower edge.
+    // Keep the material genuinely translucent: the background must remain visible.
     VisualStyle.GLASS -> Brush.verticalGradient(colorStops = arrayOf(
-        0.00f to Color(0xBFEAF7FF), 0.035f to Color(0x66D8EEFF),
-        0.12f to Color(0x553D6685), 0.48f to Color(0x88405F78),
-        0.82f to Color(0xAA172B40), 1.00f to Color(0xCC091522)
+        0.00f to Color(0x38FFFFFF),
+        0.035f to Color(0x24EAF7FF),
+        0.18f to Color(0x1D9CC7E8),
+        0.55f to Color(0x183B6685),
+        0.88f to Color(0x22243F59),
+        1.00f to Color(0x304D718A)
     ))
     VisualStyle.THREE_D -> Brush.verticalGradient(listOf(Color(0xFF526783), Panel, Color(0xFF080D18)))
     VisualStyle.NEON -> Brush.linearGradient(listOf(Mint.copy(alpha = .25f), Panel, Color(0xFF080D18)))
@@ -203,7 +207,7 @@ private fun visualSurfaceBrush(): Brush = when (activeVisualStyle.value) {
     VisualStyle.POWERAMP -> Brush.verticalGradient(listOf(Color(0xFF282B31), Color(0xFF101114), Color(0xFF050607)))
 }
 private fun visualSurfaceBorderBrush(): Brush = when (activeVisualStyle.value) {
-    VisualStyle.GLASS -> Brush.verticalGradient(listOf(Color(0xFFF3FBFF).copy(alpha = .82f), Color(0xFFB8D8F0).copy(alpha = .32f), Color(0xFF6F9AB9).copy(alpha = .48f)))
+    VisualStyle.GLASS -> Brush.verticalGradient(listOf(Color.White.copy(alpha = .72f), Color(0xFFB8D8F0).copy(alpha = .20f), Color.White.copy(alpha = .10f)))
     else -> Brush.linearGradient(listOf(Color.White.copy(alpha = .24f), Color.White.copy(alpha = .06f)))
 }
 private val activePalette = mutableStateOf(AppPalettes.first())
@@ -777,7 +781,7 @@ private fun MusicPlayerApp(
                     .shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 18.dp else 0.dp, RoundedCornerShape(22.dp), clip = false)
                     .clip(RoundedCornerShape(22.dp))
                     .background(visualSurfaceBrush())
-                    .border(if (activeVisualStyle.value == VisualStyle.GLASS) 1.25.dp else 1.dp, visualSurfaceBorderBrush(), RoundedCornerShape(22.dp))
+                    .border(if (activeVisualStyle.value == VisualStyle.GLASS) 1.dp else 1.dp, visualSurfaceBorderBrush(), RoundedCornerShape(22.dp))
                     .padding(horizontal = 4.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
@@ -817,8 +821,9 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable
 private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 12.dp else 0.dp, RoundedCornerShape(16.dp), clip = false)
-        .clip(RoundedCornerShape(16.dp)).background(if (active) Brush.verticalGradient(listOf(Mint.copy(alpha = .28f), visualSurfaceBrush().let { Panel })) else visualSurfaceBrush())
-        .border(if (activeVisualStyle.value == VisualStyle.THREE_D) 1.dp else 0.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(16.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        .clip(RoundedCornerShape(16.dp)).background(if (active) Brush.verticalGradient(listOf(Mint.copy(alpha = .22f), Color.White.copy(alpha = .035f))) else visualSurfaceBrush())
+        .border(if (activeVisualStyle.value == VisualStyle.GLASS) 1.dp else if (activeVisualStyle.value == VisualStyle.THREE_D) 1.dp else 0.dp,
+            if (activeVisualStyle.value == VisualStyle.GLASS) visualSurfaceBorderBrush() else Color.White.copy(alpha = .22f), RoundedCornerShape(16.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(Panel), contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = Mint) }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
@@ -860,7 +865,8 @@ private fun TrackDetailsDialog(track: Track, onDismiss: () -> Unit) {
 
 @Composable
 private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onToggle: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush()).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush())
+        .border(1.dp, visualSurfaceBorderBrush(), RoundedCornerShape(18.dp)).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Album, null, tint = Mint, modifier = Modifier.size(30.dp))
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(track?.title ?: "Belum ada lagu diputar", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1229,7 +1235,8 @@ private fun SettingsScreen(
         fun settingsCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
             Row(Modifier.fillMaxWidth().shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 14.dp else 0.dp, RoundedCornerShape(18.dp), clip = false)
                 .clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush())
-                .border(if (activeVisualStyle.value == VisualStyle.GLASS) 1.25.dp else if (activeVisualStyle.value == VisualStyle.THREE_D) 1.5.dp else 1.dp, visualSurfaceBorderBrush(), RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(16.dp),
+                .border(if (activeVisualStyle.value == VisualStyle.GLASS) 1.dp else if (activeVisualStyle.value == VisualStyle.THREE_D) 1.5.dp else 1.dp, visualSurfaceBorderBrush(), RoundedCornerShape(18.dp))
+                .clickable(onClick = onClick).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(46.dp).shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 8.dp else 0.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(Mint.copy(alpha = .22f)).border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                     Icon(icon, null, tint = Mint, modifier = Modifier.size(23.dp))
