@@ -657,7 +657,7 @@ private fun MusicPlayerApp(
             Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("MUSIC PLAYER", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                    Text("Feel every beat.", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                    Text("Feel every beat.", color = OnSurface, fontSize = 27.sp, fontWeight = FontWeight.Bold)
                 }
                 Icon(Icons.Default.GraphicEq, null, tint = Mint, modifier = Modifier.size(32.dp))
             }
@@ -844,7 +844,7 @@ private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit) {
         Row(Modifier.weight(1f).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(Panel), contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = Mint) }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(track.title, color = OnSurface, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Icon(if (active) Icons.Default.Equalizer else Icons.Default.PlayArrow, null, tint = if (active) Mint else Muted)
@@ -855,13 +855,13 @@ private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit) {
 @Composable
 private fun TrackDetailsDialog(track: Track, onDismiss: () -> Unit) {
     AlertDialog(onDismissRequest = onDismiss,
-        title = { Text("Rincian lagu", color = Color.White, fontWeight = FontWeight.Bold) },
+        title = { Text("Rincian lagu", color = OnSurface, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 @Composable fun detail(label: String, value: String) {
                     Column {
                         Text(label, color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text(value.ifBlank { "Tidak tersedia" }, color = Color.White, fontSize = 13.sp)
+                        Text(value.ifBlank { "Tidak tersedia" }, color = OnSurface, fontSize = 13.sp)
                     }
                 }
                 detail("JUDUL", track.title)
@@ -1048,7 +1048,7 @@ private fun FullPlayer(
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = OnSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             IconButton(onClick = { showDetails = true }) { Icon(Icons.Default.Info, "Rincian lagu", tint = Mint) }
         }
         Text(track?.artist ?: metadata?.artist?.toString() ?: "Online stream", color = Muted, fontSize = 14.sp)
@@ -1085,7 +1085,7 @@ private fun FullPlayer(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Lyrics, null, tint = Mint)
                     Spacer(Modifier.width(8.dp))
-                    Text("LYRICS", color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
+                    Text("LYRICS", color = OnSurface, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
                     Text("Tersimpan otomatis", color = Muted, fontSize = 10.sp)
                 }
                 Spacer(Modifier.height(10.dp))
@@ -1459,14 +1459,14 @@ private fun SettingsScreen(
                 IconButton(onClick = { section = "" }) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
                 Column {
                     Text(tx("settings").uppercase(), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    Text(pageTitle, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(pageTitle, color = OnSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(14.dp))
         } else {
             Text(tx("settings").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Spacer(Modifier.height(5.dp))
-            Text(tx("settings_sub"), color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+            Text(tx("settings_sub"), color = OnSurface, fontSize = 23.sp, fontWeight = FontWeight.Bold)
             Text(tx("settings_hint"), color = Muted, fontSize = 12.sp)
             Spacer(Modifier.height(18.dp))
         }
@@ -1482,7 +1482,7 @@ private fun SettingsScreen(
                 }
                 Spacer(Modifier.width(13.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(title, color = OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(3.dp))
                     Text(subtitle, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
                 }
@@ -1600,7 +1600,7 @@ private fun SettingsScreen(
             "lyrics" -> Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .055f)).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f)) {
-                    Text("Tampilkan lirik", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Tampilkan lirik", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Text("Tampilkan atau sembunyikan panel lirik di Now Playing.", color = Muted, fontSize = 11.sp)
                 }
                 Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
@@ -1608,20 +1608,20 @@ private fun SettingsScreen(
             "download" -> {
                 Text("Preferensi kualitas untuk sumber yang menyediakan beberapa varian. URL file langsung tetap diunduh sesuai kualitas asli sumber.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(18.dp))
-                Text("Kualitas audio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Kualitas audio", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 listOf("Original", "128", "192", "256", "320").forEach { quality ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).clickable { onAudioQuality(quality) }.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (quality == "Original") "Original" else "$quality kbps", color = Color.White, modifier = Modifier.weight(1f))
+                        Text(if (quality == "Original") "Original" else "$quality kbps", color = OnSurface, modifier = Modifier.weight(1f))
                         Icon(if (audioQuality == quality) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = if (audioQuality == quality) Mint else Muted)
                     }
                 }
                 Spacer(Modifier.height(14.dp)); Divider(color = Color.White.copy(alpha = .12f)); Spacer(Modifier.height(14.dp))
-                Text("Kualitas video", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Kualitas video", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 listOf("360p", "480p", "720p", "1080p").forEach { quality ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).clickable { onVideoQuality(quality) }.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(quality, color = Color.White, modifier = Modifier.weight(1f))
+                        Text(quality, color = OnSurface, modifier = Modifier.weight(1f))
                         Icon(if (videoQuality == quality) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = if (videoQuality == quality) Mint else Muted)
                     }
                 }
@@ -1632,7 +1632,7 @@ private fun SettingsScreen(
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(visualSurfaceBrush()).clickable { onLanguageSelected("auto") }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(tx("auto"), color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(tx("auto"), color = OnSurface, fontWeight = FontWeight.Bold)
                         Text(tx("follow_system"), color = Muted, fontSize = 11.sp)
                     }
                     Icon(if (selectedLanguage == "auto") Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = Mint)
@@ -1641,7 +1641,7 @@ private fun SettingsScreen(
                 locales.forEach { locale ->
                     val tag = locale.toLanguageTag()
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onLanguageSelected(tag) }.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(locale.getDisplayName(locale).replaceFirstChar { it.uppercase(locale) }, color = Color.White, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Text(locale.getDisplayName(locale).replaceFirstChar { it.uppercase(locale) }, color = OnSurface, modifier = Modifier.weight(1f), fontSize = 14.sp)
                         Text(locale.language.uppercase(), color = Muted, fontSize = 10.sp)
                         if (selectedLanguage == tag) Icon(Icons.Default.Check, null, tint = Mint, modifier = Modifier.padding(start = 8.dp))
                     }
@@ -1664,10 +1664,10 @@ private fun SettingsScreen(
                         .background(cardBrush).border(if (active) 2.dp else 1.dp, if (style == VisualStyle.GLASS) Brush.verticalGradient(listOf(Color.White.copy(alpha = .82f), Color(0xFFB8D8F0).copy(alpha = .30f), Color(0xFF6F9AB9).copy(alpha = .45f))) else if (active) Brush.linearGradient(listOf(Mint, Mint.copy(alpha = .35f))) else Brush.linearGradient(listOf(Color.White.copy(alpha = .18f), Color.White.copy(alpha = .06f))), RoundedCornerShape(20.dp))
                         .clickable { onVisualStyleSelected(style.name) }.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(style.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                            Text(style.label, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
                             if (active) Icon(Icons.Default.CheckCircle, null, tint = Mint)
                         }
-                        Text(style.description, color = Color.White.copy(alpha = .75f), fontSize = 11.sp)
+                        Text(style.description, color = OnSurface.copy(alpha = .75f), fontSize = 11.sp)
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                             repeat(3) { index ->
@@ -1689,13 +1689,13 @@ private fun SettingsScreen(
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush())
                     .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp)).padding(16.dp)) {
                     Text("Versi saat ini", color = Muted, fontSize = 12.sp)
-                    Text("v$appVersion", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("v$appVersion", color = OnSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
                     Text(updateMessage, color = if (updateInfo != null) Mint else Muted, fontSize = 12.sp, lineHeight = 17.sp)
                     if (updateInfo != null) {
                         Spacer(Modifier.height(12.dp))
                         Text("Versi terbaru: v${updateInfo!!.version}", color = Mint, fontWeight = FontWeight.Bold)
-                        Text(updateInfo!!.notes.ifBlank { "Tidak ada catatan rilis." }, color = Color.White, fontSize = 12.sp, lineHeight = 18.sp)
+                        Text(updateInfo!!.notes.ifBlank { "Tidak ada catatan rilis." }, color = OnSurface, fontSize = 12.sp, lineHeight = 18.sp)
                     }
                     Spacer(Modifier.height(14.dp))
                     Button(onClick = {
@@ -1742,7 +1742,7 @@ private fun SettingsScreen(
                     @Composable fun credit(label: String, value: String) {
                         Column {
                             Text(label.uppercase(), color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                            Text(value, color = Color.White, fontSize = 13.sp)
+                            Text(value, color = OnSurface, fontSize = 13.sp)
                         }
                     }
                     credit("Project reference", "ryuzee_project")
@@ -1773,7 +1773,7 @@ private fun EqualizerScreen(
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
-                Text("12-Band Equalizer", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("12-Band Equalizer", color = OnSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("Atur tiap frekuensi secara langsung", color = Muted, fontSize = 12.sp)
             }
             Switch(checked = enabled, onCheckedChange = onEnabled)
@@ -1806,7 +1806,7 @@ private fun EqualizerScreen(
         Divider(color = Color.White.copy(alpha = .12f))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
-                Text("Subwoofer / Deep Bass", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Subwoofer / Deep Bass", color = OnSurface, fontWeight = FontWeight.Bold)
                 Text("Low-frequency enhancement", color = Muted, fontSize = 11.sp)
             }
             Switch(checked = subEnabled, onCheckedChange = onSubEnabled)
@@ -1877,7 +1877,7 @@ private fun EmptyState(title: String, subtitle: String, action: String, onAction
     Column(Modifier.fillMaxWidth().padding(top = 54.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(Icons.Default.LibraryMusic, null, tint = Mint, modifier = Modifier.size(48.dp))
         Spacer(Modifier.height(14.dp))
-        Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text(title, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Text(subtitle, color = Muted, fontSize = 13.sp)
         Spacer(Modifier.height(14.dp))
         OutlinedButton(onClick = onAction) { Text(action) }
