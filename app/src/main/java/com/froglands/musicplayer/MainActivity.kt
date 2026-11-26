@@ -1095,6 +1095,17 @@ private fun parseLrcLyrics(source: String): List<LrcLine> {
     }.sortedBy { it.timeMs }
 }
 
+private data class LrcLine(val timeMs: Long, val text: String)
+private fun parseLrcLyrics(source: String): List<LrcLine> {
+    val pattern = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\](.*)""")
+    return source.lineSequence().mapNotNull { line ->
+        val match = pattern.matchEntire(line.trim()) ?: return@mapNotNull null
+        val minutes = match.groupValues[1].toLongOrNull() ?: 0L
+        val seconds = match.groupValues[2].toLongOrNull() ?: 0L
+        val fraction = match.groupValues[3].padEnd(3, '0').take(3).toLongOrNull() ?: 0L
+        LrcLine(minutes * 60_000L + seconds * 1_000L + fraction, match.groupValues[4].trim())
+    }.sortedBy { it.timeMs }
+}
 @Composable
 private fun FullPlayer(
     track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
@@ -1189,18 +1200,13 @@ private fun FullPlayer(
                 val activeIndex = timedLyrics.indexOfLast { it.timeMs <= (position * duration).toLong() }
                 if (timedLyrics.isNotEmpty()) {
                     val lyricListState = rememberLazyListState()
-                    LaunchedEffect(activeIndex) {
-                        if (activeIndex >= 0) lyricListState.animateScrollToItem(activeIndex)
-                    }
-                    LazyColumn(state = lyricListState, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 190.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally) {
+                    LaunchedEffect(activeIndex) { if (activeIndex >= 0) lyricListState.animateScrollToItem(activeIndex) }
+                    LazyColumn(state = lyricListState, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 190.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         items(timedLyrics.size) { index ->
                             val line = timedLyrics[index]
                             val active = index == activeIndex
-                            Text(line.text, color = if (active) Mint else Muted,
-                                fontSize = if (active) 17.sp else 13.sp,
-                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                                textAlign = TextAlign.Center,
+                            Text(line.text, color = if (active) Mint else Muted, fontSize = if (active) 17.sp else 13.sp,
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp))
                         }
                     }
