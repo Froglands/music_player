@@ -223,7 +223,7 @@ private val Ink get() = activePalette.value.background
 private val Panel get() = activePalette.value.panel
 private val Mint get() = activePalette.value.accent
 private val Muted get() = activePalette.value.muted
-private val OnSurface get() = if (Ink.luminance() > .52f) Color(0xFF151A23) else Color.White
+private val OnSurface get() = if (activePalette.value.name == "Full Light") Color(0xFF151A23) else Color.White
 private val TargetFrequencies = floatArrayOf(31f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 10000f, 12000f, 16000f)
 private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "10k", "12k", "16k")
 
@@ -1532,7 +1532,7 @@ private fun SettingsScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(Modifier.size(20.dp).clip(CircleShape).background(palette.accent))
                                     Spacer(Modifier.width(8.dp))
-                                    Text(palette.name, color = if (palette.background.luminance() > .52f) Color(0xFF151A23) else Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    Text(palette.name, color = if (palette.name == "Full Light") Color(0xFF151A23) else Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                                     if (active) { Spacer(Modifier.weight(1f)); Icon(Icons.Default.CheckCircle, null, tint = palette.accent, modifier = Modifier.size(16.dp)) }
                                 }
                                 Spacer(Modifier.height(10.dp))
