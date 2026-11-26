@@ -652,7 +652,7 @@ private fun MusicPlayerApp(
 
     LaunchedEffect(eqEnabled, eqLevels, subEnabled, subGain, subFrequency, audioSessionId) { applyEqualizer() }
 
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF101B31), Ink, Color(0xFF102A32))))) {
+    Box(Modifier.fillMaxSize().background(Ink)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
@@ -905,7 +905,7 @@ private fun MusicSeekBar(
     onSeekFinished: (Float) -> Unit, interactive: Boolean = true, modifier: Modifier = Modifier
 ) {
     var dragProgress by remember(position) { mutableFloatStateOf(position.coerceIn(0f, 1f)) }
-    val progress = dragProgress
+    val progress by animateFloatAsState(targetValue = dragProgress.coerceIn(0f, 1f), animationSpec = tween(110, easing = LinearOutSlowInEasing), label = "smooth-seek-progress")
     val gestureModifier = if (interactive) Modifier
         .pointerInput(Unit) {
             detectTapGestures { point ->
@@ -1041,7 +1041,7 @@ private fun FullPlayer(
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
             val coverSize = maxWidth.coerceAtMost(210.dp)
             Box(Modifier.size(coverSize).clip(RoundedCornerShape(28.dp))
-                .background(Brush.linearGradient(listOf(Color(0xAA42677A), Color(0xAA17263D))))
+                .background(Panel)
                 .border(1.dp, Color.White.copy(alpha = .20f), RoundedCornerShape(28.dp)).padding(9.dp)) {
                 AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri,
                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(21.dp)))
@@ -1056,7 +1056,7 @@ private fun FullPlayer(
         Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
         track?.composer?.takeIf { it.isNotBlank() }?.let { Text("Composer: $it", color = Muted, fontSize = 10.sp) }
         Spacer(Modifier.height(22.dp))
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = .045f)).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Panel.copy(alpha = .72f)).padding(horizontal = 12.dp, vertical = 10.dp)) {
             SpectrumRenderer(spectrum, spectrumStyle, Modifier.fillMaxWidth().height(64.dp))
         }
         Text(spectrumStatus, color = if (spectrumStatus.contains("LIVE")) Mint else Muted, fontSize = 10.sp)
@@ -1081,8 +1081,8 @@ private fun FullPlayer(
         if (lyricsEnabled) {
             Spacer(Modifier.height(16.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                .background(Color.White.copy(alpha = .055f))
-                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp)).padding(16.dp)) {
+                .background(Panel)
+                .border(1.dp, Muted.copy(alpha = .22f), RoundedCornerShape(20.dp)).padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Lyrics, null, tint = Mint)
                     Spacer(Modifier.width(8.dp))
@@ -1090,9 +1090,9 @@ private fun FullPlayer(
                     Text("Tersimpan otomatis", color = Muted, fontSize = 10.sp)
                 }
                 Spacer(Modifier.height(10.dp))
-                OutlinedTextField(value = lyricsText, onValueChange = onLyricsChange, modifier = Modifier.fillMaxWidth().height(76.dp),
+                OutlinedTextField(value = lyricsText, onValueChange = onLyricsChange, modifier = Modifier.fillMaxWidth().heightIn(min = 132.dp, max = 220.dp),
                     placeholder = { Text("Tempel atau tulis lirik lagu di sini…", color = Muted) },
-                    colors = fieldColors(), shape = RoundedCornerShape(14.dp), minLines = 2, maxLines = 3)
+                    colors = fieldColors(), shape = RoundedCornerShape(14.dp), minLines = 4, maxLines = 8)
                 Text("Lirik disimpan per lagu di perangkat. Isi manual; aplikasi tidak mengambil lirik berhak cipta dari sumber tidak resmi.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
             }
         }
@@ -1108,7 +1108,7 @@ private fun AlbumCover(uri: Uri?, modifier: Modifier = Modifier) {
             runCatching { context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
         }
     }
-    Box(modifier.background(Brush.linearGradient(listOf(Color(0xFF29465A), Color(0xFF18243B)))), contentAlignment = Alignment.Center) {
+    Box(modifier.background(Panel), contentAlignment = Alignment.Center) {
         if (bitmap != null) androidx.compose.foundation.Image(bitmap!!.asImageBitmap(), contentDescription = "Album cover", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else Icon(Icons.Default.Album, null, tint = Mint.copy(alpha = .9f), modifier = Modifier.size(104.dp))
     }
