@@ -51,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -97,6 +98,35 @@ private enum class VisualStyle(val label: String, val description: String) {
     AURORA("Aurora", "Gradasi warna lembut"),
     MINIMAL("Minimal", "Tampilan sederhana dan bersih")
 }
+private val SupportedAppLanguages = listOf("id", "en", "es", "fr", "de", "pt", "ja", "ko", "zh", "ar", "hi", "ru")
+private val AppTranslations = mapOf(
+"settings" to listOf("Pengaturan","Settings","Ajustes","Paramètres","Einstellungen","Configurações","設定","설정","设置","الإعدادات","सेटिंग्स","Настройки"),
+"settings_sub" to listOf("Atur pengalaman musikmu","Customize your music experience","Personaliza tu música","Personnalisez votre musique","Passe dein Musikerlebnis an","Personalize sua música","音楽体験をカスタマイズ","음악 환경 설정","自定义音乐体验","خصص تجربة الموسيقى","अपने संगीत अनुभव को अनुकूलित करें","Настройте музыку"),
+"settings_hint" to listOf("Setiap fitur punya halaman dan pengaturan sendiri.","Each feature has its own page and settings.","Cada función tiene su propia página.","Chaque fonction a sa propre page.","Jede Funktion hat eine eigene Seite.","Cada recurso tem sua própria página.","各機能に専用ページがあります。","각 기능에는 별도 페이지가 있습니다.","每项功能都有独立页面。","لكل ميزة صفحة وإعدادات خاصة.","हर सुविधा का अपना पेज है।","У каждой функции своя страница."),
+"theme" to listOf("Tema aplikasi","App theme","Tema de la aplicación","Thème de l’application","App-Design","Tema do aplicativo","アプリテーマ","앱 테마","应用主题","مظهر التطبيق","ऐप थीम","Тема приложения"),
+"visualizer" to listOf("Visualizer","Visualizer","Visualizador","Visualiseur","Visualisierung","Visualizador","ビジュアライザー","비주얼라이저","可视化器","المتخيل الصوتي","विज़ुअलाइज़र","Визуализатор"),
+"lyrics" to listOf("Lirik","Lyrics","Letras","Paroles","Liedtexte","Letras","歌詞","가사","歌词","كلمات الأغاني","गीत","Тексты песен"),
+"downloads" to listOf("Kualitas unduhan","Download quality","Calidad de descarga","Qualité de téléchargement","Downloadqualität","Qualidade do download","ダウンロード品質","다운로드 품질","下载质量","جودة التنزيل","डाउनलोड गुणवत्ता","Качество загрузки"),
+"language" to listOf("Bahasa","Language","Idioma","Langue","Sprache","Idioma","言語","언어","语言","اللغة","भाषा","Язык"),
+"appearance" to listOf("Gaya tampilan","Appearance style","Estilo visual","Style d’apparence","Darstellungsstil","Estilo visual","表示スタイル","화면 스타일","外观样式","نمط المظهر","दिखावट शैली","Стиль оформления"),
+"credits" to listOf("Tentang & Kredit","About & Credits","Acerca de y créditos","À propos et crédits","Info & Mitwirkende","Sobre e créditos","情報・クレジット","정보 및 크레딧","关于与鸣谢","حول والتقديرات","जानकारी और श्रेय","О приложении"),
+"auto" to listOf("Otomatis / Sistem","Automatic / System","Automático / Sistema","Automatique / Système","Automatisch / System","Automático / Sistema","自動 / システム","자동 / 시스템","自动 / 系统","تلقائي / النظام","स्वचालित / सिस्टम","Авто / Система"),
+"follow_system" to listOf("Ikuti bahasa perangkat","Follow device language","Usar idioma del dispositivo","Suivre la langue de l’appareil","Gerätesprache verwenden","Seguir idioma do dispositivo","端末の言語に従う","기기 언어 사용","跟随设备语言","اتبع لغة الجهاز","डिवाइस की भाषा अपनाएं","Язык устройства"),
+"choose_language" to listOf("Pilih bahasa aplikasi. Otomatis akan mengikuti bahasa perangkat.","Choose the app language. Automatic follows your device language.","Elige el idioma. Automático sigue el idioma del dispositivo.","Choisissez la langue. Automatique suit celle de l’appareil.","Wähle die Sprache. Automatisch folgt der Gerätesprache.","Escolha o idioma. Automático segue o idioma do dispositivo.","アプリの言語を選択。自動は端末の言語に従います。","앱 언어를 선택하세요. 자동은 기기 언어를 따릅니다.","选择应用语言。自动将跟随设备语言。","اختر لغة التطبيق. يتبع الوضع التلقائي لغة الجهاز.","ऐप की भाषा चुनें। स्वचालित डिवाइस भाषा का पालन करता है।","Выберите язык приложения. Авто использует язык устройства."),
+"appearance_hint" to listOf("Pilih karakter visual seluruh antarmuka.","Choose the visual style for the whole interface.","Elige el estilo visual de toda la interfaz.","Choisissez le style visuel de toute l’interface.","Wähle den visuellen Stil der gesamten Oberfläche.","Escolha o estilo visual de toda a interface.","アプリ全体の表示スタイルを選択します。","앱 전체의 화면 스타일을 선택하세요.","选择整个界面的视觉风格。","اختر النمط المرئي لكامل الواجهة.","पूरे इंटरफ़ेस की दृश्य शैली चुनें।","Выберите стиль всего интерфейса."),
+"library" to listOf("Library","Library","Biblioteca","Bibliothèque","Mediathek","Biblioteca","ライブラリ","라이브러리","音乐库","المكتبة","लाइब्रेरी","Библиотека"),
+"online" to listOf("Online","Online","En línea","En ligne","Online","Online","オンライン","온라인","在线","عبر الإنترنت","ऑनलाइन","Онлайн"),
+"offline" to listOf("Offline","Offline","Sin conexión","Hors ligne","Offline","Offline","オフライン","오프라인","离线","دون اتصال","ऑफ़लाइन","Офлайн"),
+"now_playing" to listOf("Now Playing","Now Playing","Reproduciendo","En lecture","Wiedergabe","Tocando","再生中","재생 중","正在播放","قيد التشغيل","अभी चल रहा है","Сейчас играет")
+)
+private fun appText(key: String, language: String): String {
+    val index = when (language.substringBefore('-')) {
+        "en" -> 1; "es" -> 2; "fr" -> 3; "de" -> 4; "pt" -> 5; "ja" -> 6
+        "ko" -> 7; "zh" -> 8; "ar" -> 9; "hi" -> 10; "ru" -> 11; else -> 0
+    }
+    return AppTranslations[key]?.getOrNull(index) ?: AppTranslations[key]?.first() ?: key
+}
+
 private val activeVisualStyle = mutableStateOf(VisualStyle.GLASS)
 private fun visualSurfaceBrush(): Brush = when (activeVisualStyle.value) {
     VisualStyle.GLASS -> Brush.linearGradient(listOf(Color.White.copy(alpha = .12f), Panel.copy(alpha = .76f), Color.White.copy(alpha = .035f)))
