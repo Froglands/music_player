@@ -657,6 +657,7 @@ private fun FullPlayer(
 ) {
     var position by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableLongStateOf(0L) }
+    var showDetails by remember { mutableStateOf(false) }
     LaunchedEffect(player, playing, track) {
         while (true) {
             duration = player.duration.takeIf { it > 0 } ?: track?.duration ?: 0L
@@ -668,7 +669,18 @@ private fun FullPlayer(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
             Text("NOW PLAYING", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            IconButton(onClick = { showDetails = true }) { Icon(Icons.Default.Info, "Rincian lagu", tint = Mint) }
             IconButton(onClick = onEqualizer) { Icon(Icons.Default.Equalizer, null, tint = Mint) }
+        }
+        if (showDetails) {
+            val currentUri = player.currentMediaItem?.localConfiguration?.uri ?: track?.uri
+            val detailsTrack = track ?: Track(-1L,
+                player.currentMediaItem?.mediaMetadata?.title?.toString() ?: metadata?.title?.toString() ?: "Online stream",
+                player.currentMediaItem?.mediaMetadata?.artist?.toString() ?: metadata?.artist?.toString() ?: "Unknown artist",
+                currentUri ?: Uri.EMPTY, duration.toLong(),
+                player.currentMediaItem?.mediaMetadata?.albumTitle?.toString() ?: metadata?.albumTitle?.toString() ?: "Unknown album",
+                storagePath = currentUri?.path ?: currentUri?.toString().orEmpty())
+            TrackDetailsDialog(detailsTrack, onDismiss = { showDetails = false })
         }
         Spacer(Modifier.height(12.dp))
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
@@ -1019,6 +1031,30 @@ private fun SettingsScreen(
                 FilterChip(selected = videoQuality == quality, onClick = { onVideoQuality(quality) }, label = { Text(quality) })
             }
         }
+        Spacer(Modifier.height(20.dp))
+        Divider(color = Color.White.copy(alpha = .12f))
+        Spacer(Modifier.height(14.dp))
+        Text("Tentang & Kredit", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        Text("Informasi proyek dan atribusi.", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(12.dp))
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = .045f))
+            .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(18.dp))
+            .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            @Composable fun credit(label: String, value: String) {
+                Column {
+                    Text(label.uppercase(), color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text(value, color = Color.White, fontSize = 13.sp)
+                }
+            }
+            credit("Project reference", "ryuzee_project")
+            credit("App & integration", "Froglands")
+            credit("Platform", "Android • Kotlin • Jetpack Compose")
+            credit("Audio engine", "AndroidX Media3 / ExoPlayer")
+            credit("Visualizer & effects", "Android Audio Visualizer API • Equalizer • BassBoost")
+            credit("Acknowledgement", "Terima kasih kepada para developer dan maintainer library open-source yang mendukung proyek ini.")
+        }
+        Text("Nama proyek dan library dicantumkan sebagai atribusi; hak cipta masing-masing tetap milik pemiliknya.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
         Spacer(Modifier.height(20.dp))
     }
 }
