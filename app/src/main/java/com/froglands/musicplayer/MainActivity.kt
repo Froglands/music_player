@@ -821,6 +821,11 @@ private fun MusicPlayerApp(
                         onSeekBarStyleSelected = { style -> seekBarStyle = style; preferences.edit().putString("seekbar_style", style.name).apply() },
                         lyricsEnabled = lyricsEnabled,
                         onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() },
+                        tracks = tracks, lyricsText = lyricsText,
+                        onLyricsTextChange = { value ->
+                            lyricsText = value
+                            if (lyricsTargetId > 0L) preferences.edit().putString("lyrics_${lyricsTargetId}", value).apply()
+                        },
                         audioQuality = audioDownloadQuality, videoQuality = videoDownloadQuality,
                         onAudioQuality = { value -> audioDownloadQuality = value; preferences.edit().putString("download_audio_quality", value).apply() },
                         onVideoQuality = { value -> videoDownloadQuality = value; preferences.edit().putString("download_video_quality", value).apply() },
@@ -1512,6 +1517,7 @@ private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
 private fun SettingsScreen(
     spectrum: List<Float>, selectedStyle: SpectrumStyle, seekBarStyle: SeekBarStyle, onStyleSelected: (SpectrumStyle) -> Unit, onSeekBarStyleSelected: (SeekBarStyle) -> Unit,
     lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit,
+    tracks: List<Track>, lyricsText: String, onLyricsTextChange: (String) -> Unit,
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
