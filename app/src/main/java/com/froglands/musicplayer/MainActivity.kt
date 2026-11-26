@@ -148,14 +148,16 @@ private val AppPalettes = listOf(
     AppPalette("Gold", Color(0xFF1B1708), Color(0xFF342B12), Color(0xFFFFD76A), Color(0xFFC9BD94)),
     AppPalette("Monochrome", Color(0xFF101010), Color(0xFF252525), Color(0xFFE0E0E0), Color(0xFFAAAAAA)),
     AppPalette("Cyberpunk", Color(0xFF10091F), Color(0xFF21163A), Color(0xFFFF4DE1), Color(0xFFB5A0D4)),
-    AppPalette("Lime", Color(0xFF101807), Color(0xFF253414), Color(0xFFC5F45B), Color(0xFFB3C58C))
+    AppPalette("Lime", Color(0xFF101807), Color(0xFF253414), Color(0xFFC5F45B), Color(0xFFB3C58C)),
+    AppPalette("Poweramp", Color(0xFF08090B), Color(0xFF191B20), Color(0xFFFF9D24), Color(0xFF9DA3AD))
 )
 private enum class VisualStyle(val label: String, val description: String) {
     GLASS("Glass", "Lapisan transparan dan efek kaca"),
     THREE_D("3D Depth", "Panel timbul dengan highlight dan kedalaman"),
     NEON("Neon", "Aksen terang dan kontras tinggi"),
     AURORA("Aurora", "Gradasi warna lembut"),
-    MINIMAL("Minimal", "Tampilan sederhana dan bersih")
+    MINIMAL("Minimal", "Tampilan sederhana dan bersih"),
+    POWERAMP("Poweramp", "Gelap metalik dengan aksen audio oranye")
 }
 private val SupportedAppLanguages = listOf("id", "en", "es", "fr", "de", "pt")
 private val AppTranslations = mapOf(
@@ -193,6 +195,7 @@ private fun visualSurfaceBrush(): Brush = when (activeVisualStyle.value) {
     VisualStyle.NEON -> Brush.linearGradient(listOf(Mint.copy(alpha = .25f), Panel, Color(0xFF080D18)))
     VisualStyle.AURORA -> Brush.linearGradient(listOf(Mint.copy(alpha = .20f), Color(0xFF26304A), Panel))
     VisualStyle.MINIMAL -> Brush.linearGradient(listOf(Panel, Panel))
+    VisualStyle.POWERAMP -> Brush.verticalGradient(listOf(Color(0xFF282B31), Color(0xFF101114), Color(0xFF050607)))
 }
 private val activePalette = mutableStateOf(AppPalettes.first())
 private val Ink get() = activePalette.value.background
@@ -205,7 +208,7 @@ private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k"
 data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "", val storagePath: String = "")
 
 private enum class Screen { LIBRARY, ONLINE, OFFLINE, PLAYER, EQUALIZER, SETTINGS }
-private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris") }
+private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris"), POWERAMP("Poweramp", "Batang spektrum bertingkat bergaya hi-fi") }
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
@@ -1040,6 +1043,7 @@ private fun SpectrumRenderer(levels: List<Float>, style: SpectrumStyle, modifier
         SpectrumStyle.FILLED -> SpectrumFilled(levels, modifier)
         SpectrumStyle.DOTS -> SpectrumDots(levels, modifier)
         SpectrumStyle.PULSE -> SpectrumBarsPremium(levels, modifier, true)
+        SpectrumStyle.POWERAMP -> SpectrumPoweramp(levels, modifier)
     }
 }
 
@@ -1058,6 +1062,38 @@ private fun SpectrumBarsPremium(levels: List<Float>, modifier: Modifier, mirrore
             val y = if (mirrored) (size.height - h) / 2f else size.height - h
             drawRoundRect(Mint.copy(alpha = .12f), androidx.compose.ui.geometry.Offset(x - 1.dp.toPx(), y - 2.dp.toPx()), androidx.compose.ui.geometry.Size(barW + 2.dp.toPx(), h + 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(barW, barW))
             drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFE8FFF9), Mint, Color(0xFF25A99B))), androidx.compose.ui.geometry.Offset(x, y), androidx.compose.ui.geometry.Size(barW, h), androidx.compose.ui.geometry.CornerRadius(barW, barW))
+        }
+    }
+}
+
+@Composable
+private fun SpectrumPoweramp(levels: List<Float>, modifier: Modifier) {
+    val values = levels.mapIndexed { i, v ->
+        animateFloatAsState(v.coerceIn(.025f, 1f), tween(85, easing = FastOutSlowInEasing), label = "poweramp-$i").value
+    }
+    Canvas(modifier) {
+        if (values.isEmpty()) return@Canvas
+        val gap = 2.2.dp.toPx()
+        val barWidth = ((size.width - gap * (values.size - 1)) / values.size).coerceAtLeast(1f)
+        val segments = 9
+        val segmentGap = 1.5.dp.toPx()
+        values.forEachIndexed { index, value ->
+            val x = index * (barWidth + gap)
+            val activeSegments = (value * segments).roundToInt().coerceIn(1, segments)
+            for (segment in 0 until segments) {
+                val segmentHeight = (size.height - segmentGap * (segments - 1)) / segments
+                val y = size.height - (segment + 1) * segmentHeight - segment * segmentGap
+                val lit = segment < activeSegments
+                val color = when {
+                    !lit -> Color(0xFF34373D).copy(alpha = .55f)
+                    segment >= 7 -> Color(0xFFFFD36A)
+                    segment >= 5 -> Color(0xFFFFA52D)
+                    else -> Color(0xFFFF7A18)
+                }
+                drawRoundRect(color, androidx.compose.ui.geometry.Offset(x, y),
+                    androidx.compose.ui.geometry.Size(barWidth, segmentHeight),
+                    androidx.compose.ui.geometry.CornerRadius(barWidth * .25f, barWidth * .25f))
+            }
         }
     }
 }
@@ -1200,21 +1236,21 @@ private fun SettingsScreen(
         }
         when (section) {
             "" -> {
-                settingsCard(Icons.Default.Palette, tx("theme"), "$selectedTheme • ${AppPalettes.size} pilihan warna") { section = "theme" }
+                settingsCard(Icons.Default.Translate, tx("language"), if (selectedLanguage == "auto") "Otomatis mengikuti bahasa perangkat" else Locale.forLanguageTag(selectedLanguage).getDisplayName(Locale.getDefault())) { section = "language" }
                 Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya visual") { section = "visualizer" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.Lyrics, tx("lyrics"), if (lyricsEnabled) "Panel lirik aktif di Now Playing" else "Panel lirik sedang nonaktif") { section = "lyrics" }
+                settingsCard(Icons.Default.ViewInAr, tx("appearance"), "$selectedVisualStyle • Glass, 3D, Neon, Aurora, Poweramp") { section = "appearance" }
                 Spacer(Modifier.height(10.dp))
                 settingsCard(Icons.Default.Download, tx("downloads"), "Audio $audioQuality • Video $videoQuality") { section = "download" }
                 Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.Translate, tx("language"), if (selectedLanguage == "auto") "Otomatis mengikuti bahasa perangkat" else Locale.forLanguageTag(selectedLanguage).getDisplayName(Locale.getDefault())) { section = "language" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.ViewInAr, tx("appearance"), "$selectedVisualStyle • Glass, 3D, Neon, Aurora") { section = "appearance" }
+                settingsCard(Icons.Default.Lyrics, tx("lyrics"), if (lyricsEnabled) "Panel lirik aktif di Now Playing" else "Panel lirik sedang nonaktif") { section = "lyrics" }
                 Spacer(Modifier.height(10.dp))
                 settingsCard(Icons.Default.SystemUpdate, "Pembaruan aplikasi", "Periksa versi terbaru dan unduh APK") { section = "updates" }
                 Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.Palette, tx("theme"), "$selectedTheme • ${AppPalettes.size} pilihan warna") { section = "theme" }
+                Spacer(Modifier.height(10.dp))
                 settingsCard(Icons.Default.Info, tx("credits"), "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya visual") { section = "visualizer" }
             }
             "theme" -> {
                 Text("Pilih salah satu dari ${AppPalettes.size} kombinasi warna. Perubahan langsung diterapkan.", color = Muted, fontSize = 12.sp)
@@ -1330,6 +1366,7 @@ private fun SettingsScreen(
                         VisualStyle.NEON -> Brush.linearGradient(listOf(Mint.copy(alpha = .28f), Panel))
                         VisualStyle.AURORA -> Brush.linearGradient(listOf(Color(0xFF315C67), Color(0xFF33274D), Panel))
                         VisualStyle.MINIMAL -> Brush.linearGradient(listOf(Panel, Panel))
+                        VisualStyle.POWERAMP -> Brush.verticalGradient(listOf(Color(0xFF282B31), Color(0xFF101114), Color(0xFF050607)))
                     }
                     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).shadow(if (style == VisualStyle.THREE_D) 18.dp else 0.dp, RoundedCornerShape(20.dp), clip = false).clip(RoundedCornerShape(20.dp))
                         .background(cardBrush).border(if (active) 2.dp else 1.dp, if (active) Mint else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
