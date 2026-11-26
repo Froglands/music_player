@@ -18,7 +18,7 @@
   $("spectrum-style").addEventListener("change", e => document.body.dataset.spectrum = e.target.value);
   $("search").addEventListener("input", e => window.MusicNative?.searchTracks?.(e.target.value));
   $("play-url").addEventListener("click", () => window.MusicNative?.playUrl?.($("stream-url").value.trim()));
-  $("request-audio")?.addEventListener("click", () => window.MusicNative?.requestAudioPermission?.());
+  $("track-list").addEventListener("click", e => { if (e.target.closest("#request-audio")) window.MusicNative?.requestAudioPermission?.(); });
   $("request-record")?.addEventListener("click", () => window.MusicNative?.requestRecordPermission?.());
   $("toggle-play").addEventListener("click", () => window.MusicNative?.togglePlayback?.());
   $("mini-toggle").addEventListener("click", () => window.MusicNative?.togglePlayback?.());
@@ -85,7 +85,7 @@
     navigate,
     setTracks(items) {
       $("track-count").textContent = items.length+" TRACKS";
-      $("track-list").innerHTML = items.length ? items.map(t => '<button class="setting-row track-item" data-index="'+t.index+'"><span><strong>'+escapeHtml(t.title)+'</strong><small>'+escapeHtml(t.artist)+'</small></span><span class="muted">▶</span></button>').join("") : '<div class="empty-state"><strong>Belum ada lagu ditemukan</strong><p>Periksa izin audio atau ubah pencarian.</p><button class="outline-button" id="request-audio">Izinkan akses audio</button></div>';
+      $("track-list").innerHTML = items.length ? items.map(t => '<button class="setting-row track-item" data-index="'+t.index+'"><span><strong>'+escapeHtml(t.title)+'</strong><small>'+escapeHtml(t.artist)+'</small></span><span class="muted">▶</span></button>').join("") : '<div class="empty-state"><strong>Belum ada lagu ditemukan</strong><p>Izinkan akses audio agar lagu di perangkat muncul di Library.</p><button class="outline-button" id="request-audio">Izinkan akses audio</button></div>';
       $("track-list").querySelectorAll("[data-index]").forEach(button => button.addEventListener("click", () => window.MusicNative?.playTrack?.(Number(button.dataset.index))));
       const paths=[...new Set(items.map(t => (t.path||"").split("/").slice(0,-1).join("/") || "Lokasi tidak diketahui"))];
       $("folder-filters").innerHTML='<button class="chip selected" data-folder="all">Semua lokasi</button>'+paths.map(p=>'<button class="chip" data-folder="'+escapeHtml(p)+'">'+escapeHtml(p.split("/").pop()||p)+'</button>').join("");
