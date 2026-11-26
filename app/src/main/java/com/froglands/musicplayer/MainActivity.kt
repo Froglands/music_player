@@ -822,8 +822,12 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 12.dp else 0.dp, RoundedCornerShape(16.dp), clip = false)
         .clip(RoundedCornerShape(16.dp)).background(if (active) Brush.verticalGradient(listOf(Mint.copy(alpha = .22f), Color.White.copy(alpha = .035f))) else visualSurfaceBrush())
-        .border(if (activeVisualStyle.value == VisualStyle.GLASS) 1.dp else if (activeVisualStyle.value == VisualStyle.THREE_D) 1.dp else 0.dp,
-            if (activeVisualStyle.value == VisualStyle.GLASS) visualSurfaceBorderBrush() else Color.White.copy(alpha = .22f), RoundedCornerShape(16.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        .border(
+            if (activeVisualStyle.value == VisualStyle.GLASS || activeVisualStyle.value == VisualStyle.THREE_D) 1.dp else 0.dp,
+            if (activeVisualStyle.value == VisualStyle.GLASS) visualSurfaceBorderBrush()
+            else Brush.linearGradient(listOf(Color.White.copy(alpha = .22f), Color.White.copy(alpha = .22f))),
+            RoundedCornerShape(16.dp)
+        ).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(Panel), contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = Mint) }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
