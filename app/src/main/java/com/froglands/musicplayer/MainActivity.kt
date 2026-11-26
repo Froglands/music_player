@@ -946,116 +946,160 @@ private fun SettingsScreen(
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit
 ) {
+    var section by rememberSaveable { mutableStateOf("") }
+    val pageTitle = when (section) {
+        "theme" -> "Tema aplikasi"; "visualizer" -> "Visualizer"; "lyrics" -> "Lirik"
+        "download" -> "Kualitas unduhan"; "credits" -> "Tentang & Kredit"; else -> "Pengaturan"
+    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
-        Text("PENGATURAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-        Spacer(Modifier.height(5.dp))
-        Text("Tema aplikasi", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-        Text("Pilih salah satu dari 12 kombinasi warna.", color = Muted, fontSize = 12.sp)
-        Spacer(Modifier.height(12.dp))
-        AppPalettes.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { palette ->
-                    val active = palette.name == selectedTheme
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
-                        .background(palette.panel).border(2.dp, if (active) palette.accent else Color.White.copy(alpha = .10f), RoundedCornerShape(16.dp))
-                        .clickable { onThemeSelected(palette.name) }.padding(11.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(20.dp).clip(CircleShape).background(palette.accent))
-                            Spacer(Modifier.width(8.dp))
-                            Text(palette.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                        }
-                        Spacer(Modifier.height(9.dp))
-                        Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(palette.accent))
-                    }
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-        Divider(color = Color.White.copy(alpha = .12f))
-        Spacer(Modifier.height(14.dp))
-        Text("Spectrum visualizer", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-        Text("Pilih tampilan visualisasi yang muncul di Now Playing.", color = Muted, fontSize = 12.sp)
-        Spacer(Modifier.height(16.dp))
-        SpectrumStyle.values().toList().chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { style ->
-                    val active = style == selectedStyle
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(20.dp))
-                        .background(if (active) Mint.copy(alpha = .11f) else Color.White.copy(alpha = .045f))
-                        .border(1.dp, if (active) Mint.copy(alpha = .65f) else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
-                        .clickable { onStyleSelected(style) }.padding(12.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(style.title, color = if (active) Mint else Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            if (active) Icon(Icons.Default.CheckCircle, null, tint = Mint, modifier = Modifier.size(17.dp))
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Box(Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x55202F43)).padding(5.dp)) {
-                            SpectrumRenderer(spectrum, style, Modifier.fillMaxSize())
-                        }
-                        Spacer(Modifier.height(7.dp))
-                        Text(style.description, color = Muted, fontSize = 10.sp, lineHeight = 14.sp, minLines = 2)
-                    }
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
-        }
-        Text("Pilihan langsung diterapkan ke pemutar. Spektrum membaca FFT dari output audio, bukan mikrofon.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-        Spacer(Modifier.height(22.dp))
-        Divider(color = Color.White.copy(alpha = .12f))
-        Spacer(Modifier.height(12.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f)) {
-                Text("Tampilkan lirik", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("Tampilkan panel lirik di Now Playing", color = Muted, fontSize = 11.sp)
-            }
-            Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
-        }
-        Spacer(Modifier.height(16.dp))
-        Divider(color = Color.White.copy(alpha = .12f))
-        Spacer(Modifier.height(12.dp))
-        Text("Kualitas unduhan", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text("Preferensi kualitas untuk sumber yang menyediakan beberapa varian. URL file langsung diunduh sesuai kualitas asli sumber.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-        Spacer(Modifier.height(10.dp))
-        Text("Audio", color = Color.White, fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            listOf("Original", "128", "192", "256", "320").forEach { quality ->
-                FilterChip(selected = audioQuality == quality, onClick = { onAudioQuality(quality) }, label = { Text(if (quality == "Original") quality else "$quality kbps") })
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Text("Video", color = Color.White, fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            listOf("360p", "480p", "720p", "1080p").forEach { quality ->
-                FilterChip(selected = videoQuality == quality, onClick = { onVideoQuality(quality) }, label = { Text(quality) })
-            }
-        }
-        Spacer(Modifier.height(20.dp))
-        Divider(color = Color.White.copy(alpha = .12f))
-        Spacer(Modifier.height(14.dp))
-        Text("Tentang & Kredit", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-        Text("Informasi proyek dan atribusi.", color = Muted, fontSize = 12.sp)
-        Spacer(Modifier.height(12.dp))
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = .045f))
-            .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(18.dp))
-            .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            @Composable fun credit(label: String, value: String) {
+        if (section.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { section = "" }) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
                 Column {
-                    Text(label.uppercase(), color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Text(value, color = Color.White, fontSize = 13.sp)
+                    Text("PENGATURAN", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text(pageTitle, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            credit("Project reference", "ryuzee_project")
-            credit("App & integration", "Froglands")
-            credit("Platform", "Android • Kotlin • Jetpack Compose")
-            credit("Audio engine", "AndroidX Media3 / ExoPlayer")
-            credit("Visualizer & effects", "Android Audio Visualizer API • Equalizer • BassBoost")
-            credit("Acknowledgement", "Terima kasih kepada para developer dan maintainer library open-source yang mendukung proyek ini.")
+            Spacer(Modifier.height(14.dp))
+        } else {
+            Text("PENGATURAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Spacer(Modifier.height(5.dp))
+            Text("Atur pengalaman musikmu", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+            Text("Setiap fitur punya halaman dan pengaturan sendiri.", color = Muted, fontSize = 12.sp)
+            Spacer(Modifier.height(18.dp))
         }
-        Text("Nama proyek dan library dicantumkan sebagai atribusi; hak cipta masing-masing tetap milik pemiliknya.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-        Spacer(Modifier.height(20.dp))
+        @Composable
+        fun settingsCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .055f))
+                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Mint.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = Mint, modifier = Modifier.size(23.dp))
+                }
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(3.dp))
+                    Text(subtitle, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                }
+                Icon(Icons.Default.ChevronRight, null, tint = Muted)
+            }
+        }
+        when (section) {
+            "" -> {
+                settingsCard(Icons.Default.Palette, "Tema aplikasi", "$selectedTheme • ${AppPalettes.size} pilihan warna") { section = "theme" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.GraphicEq, "Visualizer", "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya visual") { section = "visualizer" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.Lyrics, "Lirik", if (lyricsEnabled) "Panel lirik aktif di Now Playing" else "Panel lirik sedang nonaktif") { section = "lyrics" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.Download, "Kualitas unduhan", "Audio $audioQuality • Video $videoQuality") { section = "download" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.Info, "Tentang & Kredit", "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
+            }
+            "theme" -> {
+                Text("Pilih salah satu dari ${AppPalettes.size} kombinasi warna. Perubahan langsung diterapkan.", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(14.dp))
+                AppPalettes.chunked(2).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { palette ->
+                            val active = palette.name == selectedTheme
+                            Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(palette.panel)
+                                .border(2.dp, if (active) palette.accent else Color.White.copy(alpha = .10f), RoundedCornerShape(16.dp))
+                                .clickable { onThemeSelected(palette.name) }.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(20.dp).clip(CircleShape).background(palette.accent))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(palette.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    if (active) { Spacer(Modifier.weight(1f)); Icon(Icons.Default.CheckCircle, null, tint = palette.accent, modifier = Modifier.size(16.dp)) }
+                                }
+                                Spacer(Modifier.height(10.dp))
+                                Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(Brush.horizontalGradient(listOf(palette.accent, palette.muted))))
+                            }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(9.dp))
+                }
+            }
+            "visualizer" -> {
+                Text("Pilih gaya spektrum untuk Now Playing. Pratinjau memakai data audio saat ini.", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(14.dp))
+                SpectrumStyle.values().toList().chunked(2).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { style ->
+                            val active = style == selectedStyle
+                            Column(Modifier.weight(1f).clip(RoundedCornerShape(20.dp)).background(if (active) Mint.copy(alpha = .11f) else Color.White.copy(alpha = .045f))
+                                .border(1.dp, if (active) Mint.copy(alpha = .65f) else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
+                                .clickable { onStyleSelected(style) }.padding(12.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(style.title, color = if (active) Mint else Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    if (active) Icon(Icons.Default.CheckCircle, null, tint = Mint, modifier = Modifier.size(17.dp))
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Box(Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x55202F43)).padding(5.dp)) {
+                                    SpectrumRenderer(spectrum, style, Modifier.fillMaxSize())
+                                }
+                                Spacer(Modifier.height(7.dp))
+                                Text(style.description, color = Muted, fontSize = 10.sp, lineHeight = 14.sp, minLines = 2)
+                            }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+                Text("Visualizer membaca FFT dari output audio pemutar, bukan mikrofon.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            }
+            "lyrics" -> Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .055f)).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f)) {
+                    Text("Tampilkan lirik", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Tampilkan atau sembunyikan panel lirik di Now Playing.", color = Muted, fontSize = 11.sp)
+                }
+                Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
+            }
+            "download" -> {
+                Text("Preferensi kualitas untuk sumber yang menyediakan beberapa varian. URL file langsung tetap diunduh sesuai kualitas asli sumber.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(18.dp))
+                Text("Kualitas audio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Spacer(Modifier.height(8.dp))
+                listOf("Original", "128", "192", "256", "320").forEach { quality ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).clickable { onAudioQuality(quality) }.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (quality == "Original") "Original" else "$quality kbps", color = Color.White, modifier = Modifier.weight(1f))
+                        Icon(if (audioQuality == quality) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = if (audioQuality == quality) Mint else Muted)
+                    }
+                }
+                Spacer(Modifier.height(14.dp)); Divider(color = Color.White.copy(alpha = .12f)); Spacer(Modifier.height(14.dp))
+                Text("Kualitas video", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Spacer(Modifier.height(8.dp))
+                listOf("360p", "480p", "720p", "1080p").forEach { quality ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).clickable { onVideoQuality(quality) }.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(quality, color = Color.White, modifier = Modifier.weight(1f))
+                        Icon(if (videoQuality == quality) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = if (videoQuality == quality) Mint else Muted)
+                    }
+                }
+            }
+            "credits" -> {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .045f))
+                    .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(18.dp)).padding(15.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                    @Composable fun credit(label: String, value: String) {
+                        Column {
+                            Text(label.uppercase(), color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Text(value, color = Color.White, fontSize = 13.sp)
+                        }
+                    }
+                    credit("Project reference", "ryuzee_project")
+                    credit("App & integration", "Froglands")
+                    credit("Platform", "Android • Kotlin • Jetpack Compose")
+                    credit("Audio engine", "AndroidX Media3 / ExoPlayer")
+                    credit("Visualizer & effects", "Android Audio Visualizer API • Equalizer • BassBoost")
+                    credit("Acknowledgement", "Terima kasih kepada para developer dan maintainer library open-source yang mendukung proyek ini.")
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("Nama proyek dan library dicantumkan sebagai atribusi; hak cipta masing-masing tetap milik pemiliknya.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+            }
+        }
+        Spacer(Modifier.height(22.dp))
     }
 }
 
