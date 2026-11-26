@@ -743,34 +743,36 @@ private fun MusicPlayerApp(
                                     snapshotFlow { libraryListState.firstVisibleItemIndex to libraryListState.firstVisibleItemScrollOffset }
                                         .collect { (index, offset) -> libraryScrollIndex = index; libraryScrollOffset = offset }
                                 }
-                                val visibleTracks = remember(tracks, selectedFolder, search, librarySort, sortAscending) {
-                                    val filtered = tracks.filter {
+                                val orderedTracks = remember(tracks, librarySort, sortAscending) {
+                                    val mode = runCatching { LibrarySort.valueOf(librarySort) }.getOrDefault(LibrarySort.DATE_ADDED)
+                                    val sorted = when (mode) {
+                                        LibrarySort.TITLE -> tracks.sortedBy { it.title.lowercase(Locale.ROOT) }
+                                        LibrarySort.ARTIST -> tracks.sortedBy { it.artist.lowercase(Locale.ROOT) }
+                                        LibrarySort.ALBUM -> tracks.sortedBy { it.album.lowercase(Locale.ROOT) }
+                                        LibrarySort.DATE_ADDED -> tracks.sortedBy { it.dateAdded }
+                                        LibrarySort.DATE_MODIFIED -> tracks.sortedBy { it.dateModified }
+                                        LibrarySort.DURATION -> tracks.sortedBy { it.duration }
+                                        LibrarySort.YEAR -> tracks.sortedBy { it.year }
+                                        LibrarySort.SIZE -> tracks.sortedBy { it.fileSize }
+                                    }
+                                    if (sortAscending) sorted else sorted.reversed()
+                                }
+                                val visibleTracks = remember(orderedTracks, selectedFolder, search) {
+                                    orderedTracks.filter {
                                         (selectedFolder == "Semua lokasi" || it.storagePath.substringBeforeLast('/', it.storagePath).ifBlank { "Lokasi tidak diketahui" } == selectedFolder) &&
                                             (it.title.contains(search, true) || it.artist.contains(search, true) || it.album.contains(search, true))
                                     }
-                                    val mode = runCatching { LibrarySort.valueOf(librarySort) }.getOrDefault(LibrarySort.DATE_ADDED)
-                                    val sorted = when (mode) {
-                                        LibrarySort.TITLE -> filtered.sortedBy { it.title.lowercase(Locale.ROOT) }
-                                        LibrarySort.ARTIST -> filtered.sortedBy { it.artist.lowercase(Locale.ROOT) }
-                                        LibrarySort.ALBUM -> filtered.sortedBy { it.album.lowercase(Locale.ROOT) }
-                                        LibrarySort.DATE_ADDED -> filtered.sortedBy { it.dateAdded }
-                                        LibrarySort.DATE_MODIFIED -> filtered.sortedBy { it.dateModified }
-                                        LibrarySort.DURATION -> filtered.sortedBy { it.duration }
-                                        LibrarySort.YEAR -> filtered.sortedBy { it.year }
-                                        LibrarySort.SIZE -> filtered.sortedBy { it.fileSize }
-                                    }
-                                    if (sortAscending) sorted else sorted.reversed()
                                 }
                                 LazyColumn(state = libraryListState, contentPadding = PaddingValues(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                                     items(visibleTracks, key = { it.id }) { track ->
                                         TrackRow(track, selected?.id == track.id, onClick = {
                                             selected = track
-                                            player.setMediaItems(visibleTracks.map { item ->
+                                            player.setMediaItems(orderedTracks.map { item ->
                                                 MediaItem.Builder().setUri(item.uri).setMediaMetadata(
                                                     MediaMetadata.Builder().setTitle(item.title).setArtist(item.artist)
                                                         .setAlbumTitle(item.album).build()
                                                 ).build()
-                                            }, visibleTracks.indexOf(track), 0L); player.prepare(); player.play()
+                                            }, orderedTracks.indexOf(track), 0L); player.prepare(); player.play()
                                             navigateTo(Screen.PLAYER)
                                         })
                                     }
