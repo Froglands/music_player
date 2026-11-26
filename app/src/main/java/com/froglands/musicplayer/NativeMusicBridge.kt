@@ -51,8 +51,8 @@ class NativeMusicBridge(private val activity: MainActivity, private val web: Web
         refreshFiles()
     }
 
-    @JavascriptInterface fun requestAudioPermission() { activity.requestAudioPermissionFromWeb() }
-    @JavascriptInterface fun requestRecordPermission() { activity.requestRecordPermissionFromWeb() }
+    @JavascriptInterface fun requestAudioPermission() { activity.runOnUiThread { activity.requestAudioPermissionFromWeb() } }
+    @JavascriptInterface fun requestRecordPermission() { activity.runOnUiThread { activity.requestRecordPermissionFromWeb() } }
     @JavascriptInterface fun tick() { pushState() }
     @JavascriptInterface fun scanTracks() {
         scope.launch {
@@ -69,10 +69,10 @@ class NativeMusicBridge(private val activity: MainActivity, private val web: Web
         player.play()
         pushState()
     }
-    @JavascriptInterface fun togglePlayback() { if (player.isPlaying) player.pause() else player.play(); pushState() }
-    @JavascriptInterface fun next() { if (player.hasNextMediaItem()) player.seekToNextMediaItem() }
-    @JavascriptInterface fun previous() { if (player.hasPreviousMediaItem()) player.seekToPreviousMediaItem() }
-    @JavascriptInterface fun seekTo(ms: Int) { player.seekTo(ms.toLong().coerceAtLeast(0L)) }
+    @JavascriptInterface fun togglePlayback() { activity.runOnUiThread { if (player.isPlaying) player.pause() else player.play(); pushState() } }
+    @JavascriptInterface fun next() { activity.runOnUiThread { if (player.hasNextMediaItem()) player.seekToNextMediaItem() } }
+    @JavascriptInterface fun previous() { activity.runOnUiThread { if (player.hasPreviousMediaItem()) player.seekToPreviousMediaItem() } }
+    @JavascriptInterface fun seekTo(ms: Int) { activity.runOnUiThread { player.seekTo(ms.toLong().coerceAtLeast(0L)) } }
     @JavascriptInterface fun playUrl(url: String) {
         if (!url.startsWith("https://")) { showStatus("URL harus HTTPS."); return }
         player.setMediaItem(MediaItem.Builder().setUri(url).setMediaMetadata(MediaMetadata.Builder().setTitle(url.substringAfterLast('/').substringBefore('?')).build()).build())
