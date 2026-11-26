@@ -1176,6 +1176,111 @@ private fun SpectrumWave(levels: List<Float>, modifier: Modifier = Modifier) {
 }
 
 
+
+@Composable
+private fun SpectrumTwinWave(levels: List<Float>, modifier: Modifier) {
+    Canvas(modifier) {
+        if (levels.isEmpty()) return@Canvas
+        val upper = Path()
+        val lower = Path()
+        levels.forEachIndexed { i, v ->
+            val x = i * size.width / (levels.size - 1).coerceAtLeast(1)
+            val a = size.height * (.10f + v.coerceIn(0f, 1f) * .32f)
+            val b = size.height * (.10f + levels[levels.lastIndex - i].coerceIn(0f, 1f) * .28f)
+            if (i == 0) { upper.moveTo(x, size.height * .34f - a); lower.moveTo(x, size.height * .68f + b) }
+            else { upper.lineTo(x, size.height * .34f - a); lower.lineTo(x, size.height * .68f + b) }
+        }
+        drawPath(upper, Mint, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round))
+        drawPath(lower, Color(0xFF55C9B7), style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun SpectrumVuMeter(levels: List<Float>, modifier: Modifier) {
+    val left = levels.take((levels.size / 2).coerceAtLeast(1)).average().toFloat().coerceIn(0f, 1f)
+    val right = levels.drop(levels.size / 2).average().toFloat().coerceIn(0f, 1f)
+    Canvas(modifier) {
+        val cy = size.height * .62f
+        val radius = size.height * .30f
+        listOf(left, right).forEachIndexed { index, value ->
+            val cx = size.width * (if (index == 0) .30f else .70f)
+            val origin = androidx.compose.ui.geometry.Offset(cx - radius, cy - radius)
+            val box = androidx.compose.ui.geometry.Size(radius * 2, radius * 2)
+            drawArc(Color.White.copy(alpha = .16f), 180f, 180f, false, origin, box, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
+            drawArc(Brush.horizontalGradient(listOf(Color(0xFF4BD6A4), Color(0xFFFFC44D), Color(0xFFFF5C58))), 180f, value * 180f, false, origin, box, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
+            val angle = (180f + value * 180f) * PI.toFloat() / 180f
+            val tip = androidx.compose.ui.geometry.Offset(cx + cos(angle) * radius * .78f, cy + sin(angle) * radius * .78f)
+            drawLine(Color.White, androidx.compose.ui.geometry.Offset(cx, cy), tip, 2.dp.toPx(), StrokeCap.Round)
+            drawCircle(Mint, 3.dp.toPx(), androidx.compose.ui.geometry.Offset(cx, cy))
+        }
+    }
+}
+
+@Composable
+private fun SpectrumDepth(levels: List<Float>, modifier: Modifier) {
+    Canvas(modifier) {
+        if (levels.isEmpty()) return@Canvas
+        val gap = 3.dp.toPx()
+        val width = (size.width - gap * (levels.size - 1)) / levels.size
+        levels.forEachIndexed { i, level ->
+            val x = i * (width + gap)
+            val h = level.coerceIn(.02f, 1f) * size.height * .72f
+            drawRoundRect(Color(0xFF345A78).copy(alpha = .8f), androidx.compose.ui.geometry.Offset(x + 2.dp.toPx(), size.height - h * .8f), androidx.compose.ui.geometry.Size(width, h * .8f), androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
+            drawRoundRect(Mint, androidx.compose.ui.geometry.Offset(x, size.height - h), androidx.compose.ui.geometry.Size(width, h), androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
+            drawLine(Color.White.copy(alpha = .35f), androidx.compose.ui.geometry.Offset(x, size.height - h), androidx.compose.ui.geometry.Offset(x + width, size.height - h), 1.dp.toPx())
+        }
+    }
+}
+
+@Composable
+private fun SpectrumOrbit(levels: List<Float>, modifier: Modifier) {
+    Canvas(modifier) {
+        val center = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2)
+        val base = size.minDimension * .22f
+        drawCircle(Color.White.copy(alpha = .15f), base, center, style = Stroke(1.dp.toPx()))
+        levels.forEachIndexed { i, level ->
+            val angle = i * 2f * PI.toFloat() / levels.size - PI.toFloat() / 2
+            val radius = base + level.coerceIn(0f, 1f) * size.minDimension * .23f
+            val point = androidx.compose.ui.geometry.Offset(center.x + cos(angle) * radius, center.y + sin(angle) * radius)
+            drawCircle(Mint.copy(alpha = .20f), 5.dp.toPx(), point)
+            drawCircle(Mint, 2.5.dp.toPx() + level * 2.dp.toPx(), point)
+        }
+    }
+}
+
+@Composable
+private fun SpectrumDigital(levels: List<Float>, modifier: Modifier) {
+    Canvas(modifier) {
+        if (levels.isEmpty()) return@Canvas
+        val rows = 8
+        val gap = 2.dp.toPx()
+        val cw = (size.width - gap * (levels.size - 1)) / levels.size
+        val rh = (size.height - gap * (rows - 1)) / rows
+        levels.forEachIndexed { col, value ->
+            val active = (value.coerceIn(0f, 1f) * rows).toInt().coerceIn(1, rows)
+            repeat(rows) { row ->
+                val on = row >= rows - active
+                drawRoundRect(if (on) Mint.copy(alpha = .45f + .55f * (row + 1) / rows) else Color.White.copy(alpha = .07f), androidx.compose.ui.geometry.Offset(col * (cw + gap), row * (rh + gap)), androidx.compose.ui.geometry.Size(cw, rh), androidx.compose.ui.geometry.CornerRadius(1.dp.toPx()))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpectrumFire(levels: List<Float>, modifier: Modifier) {
+    Canvas(modifier) {
+        if (levels.isEmpty()) return@Canvas
+        val gap = 3.dp.toPx()
+        val width = (size.width - gap * (levels.size - 1)) / levels.size
+        levels.forEachIndexed { i, value ->
+            val h = value.coerceIn(.02f, 1f) * size.height * .86f
+            val x = i * (width + gap)
+            val y = size.height - h
+            drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFFFE06A), Color(0xFFFF922E), Color(0xFFE84B42)), startY = y, endY = size.height), androidx.compose.ui.geometry.Offset(x, y), androidx.compose.ui.geometry.Size(width, h), androidx.compose.ui.geometry.CornerRadius(width / 2, width / 2))
+        }
+    }
+}
+
 @Composable
 private fun SpectrumRenderer(levels: List<Float>, style: SpectrumStyle, modifier: Modifier = Modifier) {
     when (style) {
@@ -1186,14 +1291,13 @@ private fun SpectrumRenderer(levels: List<Float>, style: SpectrumStyle, modifier
         SpectrumStyle.LINE -> SpectrumLine(levels, modifier)
         SpectrumStyle.FILLED -> SpectrumFilled(levels, modifier)
         SpectrumStyle.DOTS -> SpectrumDots(levels, modifier)
-        SpectrumStyle.PULSE -> SpectrumBarsPremium(levels, modifier, true)
         SpectrumStyle.POWERAMP -> SpectrumPoweramp(levels, modifier)
-        SpectrumStyle.VU -> SpectrumBarsPremium(levels, modifier, true)
-        SpectrumStyle.MIRROR_WAVE -> SpectrumWave(levels.reversed(), modifier)
-        SpectrumStyle.SPECTRUM_3D -> SpectrumPoweramp(levels.reversed(), modifier)
-        SpectrumStyle.ORBIT -> SpectrumCircular(levels.reversed(), modifier)
-        SpectrumStyle.DIGITAL -> SpectrumDots(levels.reversed(), modifier)
-        SpectrumStyle.FIRE -> SpectrumBarsPremium(levels, modifier, false)
+        SpectrumStyle.VU -> SpectrumVuMeter(levels, modifier)
+        SpectrumStyle.MIRROR_WAVE -> SpectrumTwinWave(levels, modifier)
+        SpectrumStyle.SPECTRUM_3D -> SpectrumDepth(levels, modifier)
+        SpectrumStyle.ORBIT -> SpectrumOrbit(levels, modifier)
+        SpectrumStyle.DIGITAL -> SpectrumDigital(levels, modifier)
+        SpectrumStyle.FIRE -> SpectrumFire(levels, modifier)
     }
 }
 
