@@ -354,7 +354,6 @@ private fun MusicPlayerApp(
     var playing by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var selectedFolder by rememberSaveable { mutableStateOf("Semua lokasi") }
-    var detailTrack by remember { mutableStateOf<Track?>(null) }
     var onlineUrl by remember { mutableStateOf("") }
     var screen by rememberSaveable { mutableStateOf(Screen.LIBRARY) }
     var libraryScrollIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -677,10 +676,9 @@ private fun MusicPlayerApp(
                                                 ).build()
                                             }, tracks.indexOf(track), 0L); player.prepare(); player.play()
                                             navigateTo(Screen.PLAYER)
-                                        }, onDetails = { detailTrack = track })
+                                        })
                                     }
                                 }
-                                if (detailTrack != null) TrackDetailsDialog(detailTrack!!, onDismiss = { detailTrack = null })
                             }
                         }
                     }
@@ -711,7 +709,7 @@ private fun MusicPlayerApp(
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
                         lyricsEnabled = lyricsEnabled, lyricsText = lyricsText,
                         onLyricsChange = { lyricsText = it; preferences.edit().putString(lyricsKey, it).apply() },
-                        onBack = { screen = Screen.LIBRARY }, onEqualizer = { navigateTo(Screen.EQUALIZER) },
+                        onBack = { screen = Screen.LIBRARY },
                         onPrevious = {
                             val index = tracks.indexOfFirst { it.id == selected?.id }
                             if (index > 0) player.seekToPreviousMediaItem()
@@ -806,7 +804,7 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 )
 
 @Composable
-private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit, onDetails: () -> Unit) {
+private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 12.dp else 0.dp, RoundedCornerShape(16.dp), clip = false)
         .clip(RoundedCornerShape(16.dp)).background(if (active) Brush.verticalGradient(listOf(Mint.copy(alpha = .28f), visualSurfaceBrush().let { Panel })) else visualSurfaceBrush())
         .border(if (activeVisualStyle.value == VisualStyle.THREE_D) 1.dp else 0.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(16.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -818,7 +816,6 @@ private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit, onDetai
             }
             Icon(if (active) Icons.Default.Equalizer else Icons.Default.PlayArrow, null, tint = if (active) Mint else Muted)
         }
-        IconButton(onClick = onDetails) { Icon(Icons.Default.Info, "Rincian lagu", tint = Mint) }
     }
 }
 
@@ -865,7 +862,7 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 @Composable
 private fun FullPlayer(
     track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
-    hasRecordPermission: Boolean, requestRecordPermission: () -> Unit, onBack: () -> Unit, onEqualizer: () -> Unit,
+    hasRecordPermission: Boolean, requestRecordPermission: () -> Unit, onBack: () -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit,
     lyricsEnabled: Boolean, lyricsText: String, onLyricsChange: (String) -> Unit
 ) {
@@ -884,7 +881,6 @@ private fun FullPlayer(
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
             Text("NOW PLAYING", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp, modifier = Modifier.weight(1f))
             IconButton(onClick = { showDetails = true }) { Icon(Icons.Default.Info, "Rincian lagu", tint = Mint) }
-            IconButton(onClick = onEqualizer) { Icon(Icons.Default.Equalizer, null, tint = Mint) }
         }
         if (showDetails) {
             val currentUri = player.currentMediaItem?.localConfiguration?.uri ?: track?.uri
@@ -934,9 +930,6 @@ private fun FullPlayer(
             IconButton(onClick = onNext, modifier = Modifier.size(54.dp)) { Icon(Icons.Default.SkipNext, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
         }
         Spacer(Modifier.height(12.dp))
-        OutlinedButton(onClick = onEqualizer, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Mint)) {
-            Icon(Icons.Default.Equalizer, null); Spacer(Modifier.width(8.dp)); Text("12-Band Equalizer + Subwoofer")
-        }
         if (lyricsEnabled) {
             Spacer(Modifier.height(16.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
