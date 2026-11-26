@@ -234,6 +234,7 @@ class MainActivity : ComponentActivity() {
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         permissionGranted = it
+        if (it) nativeBridge?.scanTracks()
     }
     private val recordPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         recordPermission = it
