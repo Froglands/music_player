@@ -317,6 +317,21 @@ class MainActivity : ComponentActivity() {
         result
     }
 
+    override fun onPause() {
+        if (::player.isInitialized) {
+            val uri = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+            if (uri.isNotBlank()) {
+                getSharedPreferences("music_player_preferences", Context.MODE_PRIVATE).edit()
+                    .putString("last_played_uri", uri)
+                    .putLong("last_played_position", player.currentPosition.coerceAtLeast(0L))
+                    .putString("last_played_title", player.mediaMetadata.title?.toString().orEmpty())
+                    .putString("last_played_artist", player.mediaMetadata.artist?.toString().orEmpty())
+                    .apply()
+            }
+        }
+        super.onPause()
+    }
+
     override fun onDestroy() {
         notificationManager.setPlayer(null)
         mediaSession.release()
@@ -412,7 +427,57 @@ private fun MusicPlayerApp(
     var eqEffect by remember { mutableStateOf<Equalizer?>(null) }
     var bassEffect by remember { mutableStateOf<BassBoost?>(null) }
 
-    LaunchedEffect(hasPermission) { if (hasPermission) tracks = loadTracks() }
+    LaunchedEffect(hasPermission) {
+        if (hasPermission) {
+            tracks = loadTracks()
+            val lastUri = preferences.getString("last_played_uri", null)
+            if (!lastUri.isNullOrBlank()) {
+                val lastPosition = preferences.getLong("last_played_position", 0L).coerceAtLeast(0L)
+                val lastTrackIndex = tracks.indexOfFirst { it.uri.toString() == lastUri }
+                if (lastTrackIndex >= 0) {
+                    val restoredItems = tracks.map { item ->
+                        MediaItem.Builder().setUri(item.uri).setMediaMetadata(
+                            MediaMetadata.Builder().setTitle(item.title).setArtist(item.artist)
+                                .setAlbumTitle(item.album).build()
+                        ).build()
+                    }
+                    selected = tracks[lastTrackIndex]
+                    player.setMediaItems(restoredItems, lastTrackIndex, lastPosition)
+                    player.prepare()
+                    screen = Screen.PLAYER
+                } else {
+                    val savedUri = Uri.parse(lastUri)
+                    val restoredItem = MediaItem.Builder().setUri(savedUri).setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(preferences.getString("last_played_title", "Musik terakhir"))
+                            .setArtist(preferences.getString("last_played_artist", ""))
+                            .build()
+                    ).build()
+                    selected = null
+                    player.setMediaItem(restoredItem, lastPosition)
+                    player.prepare()
+                    screen = Screen.PLAYER
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(player, playing) {
+        while (true) {
+            if (playing) {
+                val uri = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+                if (uri.isNotBlank()) {
+                    preferences.edit()
+                        .putString("last_played_uri", uri)
+                        .putLong("last_played_position", player.currentPosition.coerceAtLeast(0L))
+                        .putString("last_played_title", player.mediaMetadata.title?.toString().orEmpty())
+                        .putString("last_played_artist", player.mediaMetadata.artist?.toString().orEmpty())
+                        .apply()
+                }
+            }
+            delay(2000)
+        }
+    }
 
     BackHandler {
         if (screenHistory.isNotEmpty()) screen = screenHistory.removeAt(screenHistory.lastIndex)
