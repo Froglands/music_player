@@ -935,14 +935,33 @@ private fun MusicSeekBar(
         val end = androidx.compose.ui.geometry.Offset(size.width, centerY)
         val activeEnd = androidx.compose.ui.geometry.Offset(size.width * progress, centerY)
         val inactive = Color.White.copy(alpha = .18f)
-        if (style == SeekBarStyle.SEGMENTED) {
-            val count = 34
-            val gap = 3.dp.toPx()
+        if (style == SeekBarStyle.DOTTED || style == SeekBarStyle.DASHED) {
+            val count = if (style == SeekBarStyle.DOTTED) 44 else 28
+            val step = size.width / count
+            repeat(count) { i ->
+                val x = i * step + step / 2f
+                val filled = x <= size.width * progress
+                if (style == SeekBarStyle.DOTTED) drawCircle(if (filled) Mint else inactive, 1.8.dp.toPx(), androidx.compose.ui.geometry.Offset(x, centerY))
+                else drawRoundRect(if (filled) Mint else inactive, androidx.compose.ui.geometry.Offset(x - step * .34f, centerY - 2.dp.toPx()), androidx.compose.ui.geometry.Size(step * .68f, 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
+            }
+        } else if (style == SeekBarStyle.DOUBLE) {
+            drawLine(inactive, androidx.compose.ui.geometry.Offset(0f, centerY - 3.dp.toPx()), androidx.compose.ui.geometry.Offset(size.width, centerY - 3.dp.toPx()), 2.dp.toPx(), StrokeCap.Round)
+            drawLine(inactive, androidx.compose.ui.geometry.Offset(0f, centerY + 3.dp.toPx()), androidx.compose.ui.geometry.Offset(size.width, centerY + 3.dp.toPx()), 2.dp.toPx(), StrokeCap.Round)
+            drawLine(Mint, androidx.compose.ui.geometry.Offset(0f, centerY - 3.dp.toPx()), androidx.compose.ui.geometry.Offset(size.width * progress, centerY - 3.dp.toPx()), 2.dp.toPx(), StrokeCap.Round)
+            drawLine(Color(0xFF8B7CFF), androidx.compose.ui.geometry.Offset(0f, centerY + 3.dp.toPx()), androidx.compose.ui.geometry.Offset(size.width * progress, centerY + 3.dp.toPx()), 2.dp.toPx(), StrokeCap.Round)
+        } else if (style == SeekBarStyle.NEEDLE) {
+            drawLine(inactive, start, end, 3.dp.toPx(), StrokeCap.Round)
+            drawLine(Mint, start, activeEnd, 3.dp.toPx(), StrokeCap.Round)
+            drawLine(Color.White, androidx.compose.ui.geometry.Offset(activeEnd.x, centerY - 9.dp.toPx()), androidx.compose.ui.geometry.Offset(activeEnd.x, centerY + 9.dp.toPx()), 2.dp.toPx(), StrokeCap.Round)
+            drawCircle(Mint, 3.dp.toPx(), activeEnd)
+        } else if (style == SeekBarStyle.SEGMENTED || style == SeekBarStyle.BLOCKS) {
+            val count = if (style == SeekBarStyle.BLOCKS) 18 else 34
+            val gap = if (style == SeekBarStyle.BLOCKS) 2.dp.toPx() else 3.dp.toPx()
             val segmentWidth = (size.width - gap * (count - 1)) / count
             repeat(count) { i ->
                 val x = i * (segmentWidth + gap)
                 val filled = x + segmentWidth / 2f <= size.width * progress
-                drawRoundRect(if (filled) Mint else inactive, androidx.compose.ui.geometry.Offset(x, centerY - 2.dp.toPx()), androidx.compose.ui.geometry.Size(segmentWidth, 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
+                drawRoundRect(if (filled) Mint else inactive, androidx.compose.ui.geometry.Offset(x, centerY - (if (style == SeekBarStyle.BLOCKS) 4.dp.toPx() else 2.dp.toPx())), androidx.compose.ui.geometry.Size(segmentWidth, if (style == SeekBarStyle.BLOCKS) 8.dp.toPx() else 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
             }
         } else if (style == SeekBarStyle.WAVE) {
             val path = Path()
@@ -968,7 +987,7 @@ private fun MusicSeekBar(
                 drawLine(Mint.copy(alpha = .22f), start, activeEnd, 15.dp.toPx(), StrokeCap.Round)
                 drawLine(Mint.copy(alpha = .35f), start, activeEnd, 9.dp.toPx(), StrokeCap.Round)
             }
-            val brush = if (style == SeekBarStyle.GRADIENT) Brush.horizontalGradient(listOf(Mint, Color(0xFF8B7CFF), Color(0xFFFF7DB8))) else Brush.horizontalGradient(listOf(Mint, Mint))
+            val brush = if (style == SeekBarStyle.GRADIENT || style == SeekBarStyle.RAINBOW) Brush.horizontalGradient(if (style == SeekBarStyle.RAINBOW) listOf(Color(0xFFFF5D73), Color(0xFFFFC45C), Color(0xFF67E7A5), Color(0xFF55B8FF), Color(0xFFB88BFF)) else listOf(Mint, Color(0xFF8B7CFF), Color(0xFFFF7DB8))) else Brush.horizontalGradient(listOf(Mint, Mint))
             drawLine(brush, start, activeEnd, trackHeight, StrokeCap.Round)
             when (style) {
                 SeekBarStyle.CLASSIC -> {
