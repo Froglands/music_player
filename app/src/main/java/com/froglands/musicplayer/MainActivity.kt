@@ -84,9 +84,9 @@ import kotlinx.coroutines.launch
 import kotlin.math.*
 
 
-private data class AppUpdateInfo(val version: String, val notes: String, val apkUrl: String)
+internal data class AppUpdateInfo(val version: String, val notes: String, val apkUrl: String)
 
-private suspend fun fetchLatestAppUpdate(currentVersion: String): AppUpdateInfo? = withContext(Dispatchers.IO) {
+internal suspend fun fetchLatestAppUpdate(currentVersion: String): AppUpdateInfo? = withContext(Dispatchers.IO) {
     val connection = (URL("https://api.github.com/repos/Froglands/music_player/releases/latest").openConnection() as HttpURLConnection).apply {
         connectTimeout = 12000
         readTimeout = 12000
@@ -124,7 +124,7 @@ private suspend fun fetchLatestAppUpdate(currentVersion: String): AppUpdateInfo?
     }
 }
 
-private fun downloadAppUpdate(context: Context, update: AppUpdateInfo) {
+internal fun downloadAppUpdate(context: Context, update: AppUpdateInfo) {
     val request = DownloadManager.Request(Uri.parse(update.apkUrl))
         .setTitle("Music Player v${update.version}")
         .setDescription("Mengunduh pembaruan aplikasi")
