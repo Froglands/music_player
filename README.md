@@ -1,23 +1,23 @@
 # Music Player
 
-**Native Android music player** berbasis Kotlin dan Jetpack Compose, dengan koleksi musik lokal, streaming URL audio langsung yang sah, equalizer, visualizer, dan antarmuka glassmorphism.
+**A native Android music player** built with Kotlin and Jetpack Compose, featuring a local music library, supported direct audio URL streaming, an equalizer, a visualizer, and a glassmorphism interface.
 
-## Fitur
+## Features
 
-- Library musik lokal, pencarian, dan filter folder
-- Pemutar audio dengan kontrol play/pause, next, previous, dan seek
-- Background playback, media notification, dan kontrol lockscreen
-- Streaming URL audio HTTPS langsung yang sah
-- Now Playing dengan metadata dan artwork
-- Equalizer 12-band, subwoofer/deep bass, dan spectrum visualizer 28-band
-- Lirik manual per lagu
-- Tema warna dan gaya visual Glass, 3D, Neon, Aurora, dan Minimal
-- Unduhan offline hanya untuk sumber yang mengizinkan pengunduhan
-- YouTube melalui pemutar/embed resmi; aplikasi tidak mengekstrak atau mengunduh audio YouTube
-- Bahasa Indonesia, English, Español, Français, Deutsch, Português, serta mode otomatis
-- Pemeriksaan pembaruan dari GitHub Releases
+- Local music library with search and folder filters
+- Audio player controls: play/pause, next, previous, and seek
+- Background playback, media notifications, and lock-screen controls
+- Supported direct HTTPS audio URL streaming
+- Now Playing screen with metadata and artwork
+- 12-band equalizer, subwoofer/deep bass, and 28-band spectrum visualizer
+- Manual lyrics for each song
+- Color themes and visual styles: Glass, 3D, Neon, Aurora, and Minimal
+- Offline downloads only from sources that permit downloading
+- YouTube playback through the official player/embed; the app does not extract or download YouTube audio
+- Indonesian, English, Spanish, French, German, and Portuguese, plus automatic language mode
+- Update checks through GitHub Releases
 
-## Teknologi
+## Technology
 
 - Kotlin 2.0
 - Jetpack Compose
@@ -28,29 +28,29 @@
 
 ## Build APK
 
-Build otomatis dijalankan melalui GitHub Actions pada setiap push ke branch `main`.
+Automated builds run through GitHub Actions whenever code is pushed to the `main` branch.
 
-1. Buka tab **Actions**.
-2. Pilih workflow **Android APK**.
-3. Setelah build berhasil, unduh artifact `MusicPlayer-debug-apk`.
+1. Open the **Actions** tab.
+2. Select the **Android APK** workflow.
+3. After the build succeeds, download the `MusicPlayer-debug-apk` artifact.
 
-Artifact debug cocok untuk pengujian. Untuk rilis publik dan pembaruan dalam aplikasi, gunakan APK release yang ditandatangani dengan keystore permanen.
+The debug artifact is intended for testing. For public distribution and in-app updates, use a release APK signed with a permanent keystore.
 
-## Rilis dan pembaruan
+## Releases and Updates
 
-Riwayat perubahan tersedia di [CHANGELOG.md](CHANGELOG.md). Workflow menerbitkan GitHub Release saat tag versi `v*` didorong, setelah repository memiliki secrets signing berikut:
+See [CHANGELOG.md](CHANGELOG.md) for the change history. The workflow publishes a GitHub Release when a version tag matching `v*` is pushed, provided the repository contains these signing secrets:
 
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Gunakan keystore yang sama untuk semua versi agar Android dapat memasang pembaruan tanpa menghapus aplikasi sebelumnya. Jangan membagikan file keystore atau kata sandinya.
+Use the same keystore for every version so Android can install updates without requiring the app to be uninstalled first. Never share the keystore file or its passwords.
 
-## Catatan hak cipta
+## Copyright and Usage
 
-Streaming online hanya ditujukan untuk URL audio langsung atau layanan/API yang mengizinkan pemutaran. Pengunduhan hanya tersedia untuk sumber yang memberikan izin. Aplikasi tidak mengunduh atau mendistribusikan ulang lagu berhak cipta tanpa izin.
+Online playback is intended for direct audio URLs or services/APIs that permit playback. Offline downloads are available only from sources that grant permission. The app does not download or redistribute copyrighted music without authorization.
 
-## Status
+## Project Status
 
-Pengembangan aktif. Lihat [CHANGELOG.md](CHANGELOG.md) untuk daftar fitur target rilis.
+Actively developed. See [CHANGELOG.md](CHANGELOG.md) for released features and changes.
