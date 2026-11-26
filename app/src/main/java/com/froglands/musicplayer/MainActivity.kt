@@ -887,31 +887,34 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 
 @Composable
 private fun SeekBarPreview(style: SeekBarStyle, modifier: Modifier = Modifier) {
-    MusicSeekBar(position = .62f, style = style, onPositionChange = {}, onSeekFinished = {}, modifier = modifier)
+    MusicSeekBar(position = .62f, style = style, onPositionChange = {}, onSeekFinished = {}, modifier = modifier.fillMaxWidth().height(28.dp))
 }
 
 @Composable
 private fun MusicSeekBar(
     position: Float, style: SeekBarStyle, onPositionChange: (Float) -> Unit,
-    onSeekFinished: () -> Unit, modifier: Modifier = Modifier
+    onSeekFinished: (Float) -> Unit, modifier: Modifier = Modifier
 ) {
-    val progress = position.coerceIn(0f, 1f)
+    var dragProgress by remember(position) { mutableFloatStateOf(position.coerceIn(0f, 1f)) }
+    val progress = dragProgress
     Canvas(modifier
         .pointerInput(Unit) {
             detectTapGestures { point ->
-                onPositionChange((point.x / size.width).coerceIn(0f, 1f))
-                onSeekFinished()
+                dragProgress = (point.x / size.width).coerceIn(0f, 1f)
+                onPositionChange(dragProgress)
+                onSeekFinished(dragProgress)
             }
         }
         .pointerInput(Unit) {
             detectDragGestures(
-                onDragStart = { point -> onPositionChange((point.x / size.width).coerceIn(0f, 1f)) },
+                onDragStart = { point -> dragProgress = (point.x / size.width).coerceIn(0f, 1f); onPositionChange(dragProgress) },
                 onDrag = { change, _ ->
-                    onPositionChange((change.position.x / size.width).coerceIn(0f, 1f))
+                    dragProgress = (change.position.x / size.width).coerceIn(0f, 1f)
+                    onPositionChange(dragProgress)
                     change.consume()
                 },
-                onDragEnd = onSeekFinished,
-                onDragCancel = onSeekFinished
+                onDragEnd = { onSeekFinished(dragProgress) },
+                onDragCancel = { onSeekFinished(dragProgress) }
             )
         }
     ) {
@@ -1030,7 +1033,7 @@ private fun FullPlayer(
         Text(spectrumStatus, color = if (spectrumStatus.contains("LIVE")) Mint else Muted, fontSize = 10.sp)
         if (!hasRecordPermission) TextButton(onClick = requestRecordPermission) { Text("Izinkan akses audio untuk spectrum", color = Mint) }
         Spacer(Modifier.height(10.dp))
-        MusicSeekBar(position = position, style = seekBarStyle, onPositionChange = { position = it }, onSeekFinished = { if (duration > 0) player.seekTo((position * duration).toLong()) })
+        MusicSeekBar(position = position, style = seekBarStyle, onPositionChange = { position = it }, onSeekFinished = { value -> if (duration > 0) player.seekTo((value * duration).toLong()) }, modifier = Modifier.fillMaxWidth().height(28.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(formatTime((position * duration).toLong()), color = Muted, fontSize = 11.sp)
             Text(formatTime(duration), color = Muted, fontSize = 11.sp)
@@ -1350,23 +1353,33 @@ private fun SettingsScreen(
         }
         when (section) {
             "" -> {
-                settingsCard(Icons.Default.Translate, tx("language"), if (selectedLanguage == "auto") "Otomatis mengikuti bahasa perangkat" else Locale.forLanguageTag(selectedLanguage).getDisplayName(Locale.getDefault())) { section = "language" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.ViewInAr, tx("appearance"), "$selectedVisualStyle • Glass, 3D, Neon, Aurora, Poweramp") { section = "appearance" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.Download, tx("downloads"), "Audio $audioQuality • Video $videoQuality") { section = "download" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.Lyrics, tx("lyrics"), if (lyricsEnabled) "Panel lirik aktif di Now Playing" else "Panel lirik sedang nonaktif") { section = "lyrics" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.SystemUpdate, "Pembaruan aplikasi", "Periksa versi terbaru dan unduh APK") { section = "updates" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.Palette, tx("theme"), "$selectedTheme • ${AppPalettes.size} pilihan warna") { section = "theme" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.Info, tx("credits"), "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
-                Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya visual") { section = "visualizer" }
-                Spacer(Modifier.height(10.dp))
+                @Composable fun groupTitle(title: String, subtitle: String) {
+                    Column(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp)) {
+                        Text(title.uppercase(), color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
+                        Text(subtitle, color = Muted, fontSize = 11.sp)
+                    }
+                }
+                groupTitle("PEMUTAR & AUDIO", "Kontrol pemutaran dan efek suara")
+                settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya spektrum") { section = "visualizer" }
+                Spacer(Modifier.height(8.dp))
                 settingsCard(Icons.Default.LinearScale, "Progress Bar", "${seekBarStyle.title} • ${SeekBarStyle.values().size} gaya tampilan") { section = "seekbar" }
+                Spacer(Modifier.height(8.dp))
+                settingsCard(Icons.Default.Lyrics, tx("lyrics"), if (lyricsEnabled) "Panel lirik aktif di Now Playing" else "Panel lirik sedang nonaktif") { section = "lyrics" }
+
+                groupTitle("TAMPILAN", "Tema warna dan karakter antarmuka")
+                settingsCard(Icons.Default.Palette, tx("theme"), "$selectedTheme • ${AppPalettes.size} pilihan warna") { section = "theme" }
+                Spacer(Modifier.height(8.dp))
+                settingsCard(Icons.Default.ViewInAr, tx("appearance"), "$selectedVisualStyle • Glass, 3D, Neon, Aurora, Poweramp") { section = "appearance" }
+
+                groupTitle("KOLEKSI & UNDUHAN", "Preferensi file audio dan video")
+                settingsCard(Icons.Default.Download, tx("downloads"), "Audio $audioQuality • Video $videoQuality") { section = "download" }
+
+                groupTitle("APLIKASI", "Bahasa, pembaruan, dan informasi")
+                settingsCard(Icons.Default.Translate, tx("language"), if (selectedLanguage == "auto") "Otomatis mengikuti bahasa perangkat" else Locale.forLanguageTag(selectedLanguage).getDisplayName(Locale.getDefault())) { section = "language" }
+                Spacer(Modifier.height(8.dp))
+                settingsCard(Icons.Default.SystemUpdate, "Pembaruan aplikasi", "Periksa versi terbaru dan unduh APK") { section = "updates" }
+                Spacer(Modifier.height(8.dp))
+                settingsCard(Icons.Default.Info, tx("credits"), "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
             }
             "theme" -> {
                 Text("Pilih salah satu dari ${AppPalettes.size} kombinasi warna. Perubahan langsung diterapkan.", color = Muted, fontSize = 12.sp)
