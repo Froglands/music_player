@@ -16,8 +16,11 @@
   $("visual-style").addEventListener("change", e => document.body.dataset.style = e.target.value);
   $("theme").addEventListener("change", e => document.body.dataset.theme = e.target.value);
   $("spectrum-style").addEventListener("change", e => document.body.dataset.spectrum = e.target.value);
-  $("search").addEventListener("input", e => window.MusicNative?.searchTracks?.(e.target.value));
+  $("search").addEventListener("input", e => window.MusicNative?.searchTracks?.(e.target.value, ""));
   $("play-url").addEventListener("click", () => window.MusicNative?.playUrl?.($("stream-url").value.trim()));
+  $("download-url").addEventListener("click", () => window.MusicNative?.downloadMedia?.($("stream-url").value.trim()));
+  $("mode-audio").addEventListener("click", () => { $("audio-mode").hidden=false; $("youtube-mode").hidden=true; $("mode-audio").classList.add("selected"); $("mode-youtube").classList.remove("selected"); });
+  $("mode-youtube").addEventListener("click", () => { $("audio-mode").hidden=true; $("youtube-mode").hidden=false; $("mode-youtube").classList.add("selected"); $("mode-audio").classList.remove("selected"); });
   $("track-list").addEventListener("click", e => { if (e.target.closest("#request-audio")) window.MusicNative?.requestAudioPermission?.(); });
   $("request-record")?.addEventListener("click", () => window.MusicNative?.requestRecordPermission?.());
   $("toggle-play").addEventListener("click", () => window.MusicNative?.togglePlayback?.());
