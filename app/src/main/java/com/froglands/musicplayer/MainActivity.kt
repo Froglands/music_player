@@ -150,7 +150,12 @@ private val AppPalettes = listOf(
     AppPalette("Monochrome", Color(0xFF101010), Color(0xFF252525), Color(0xFFE0E0E0), Color(0xFFAAAAAA)),
     AppPalette("Cyberpunk", Color(0xFF10091F), Color(0xFF21163A), Color(0xFFFF4DE1), Color(0xFFB5A0D4)),
     AppPalette("Lime", Color(0xFF101807), Color(0xFF253414), Color(0xFFC5F45B), Color(0xFFB3C58C)),
-    AppPalette("Poweramp", Color(0xFF08090B), Color(0xFF191B20), Color(0xFFFF9D24), Color(0xFF9DA3AD))
+    AppPalette("Poweramp", Color(0xFF08090B), Color(0xFF191B20), Color(0xFFFF9D24), Color(0xFF9DA3AD)),
+    AppPalette("Obsidian", Color(0xFF050609), Color(0xFF11151D), Color(0xFF8FA8FF), Color(0xFF8993A5)),
+    AppPalette("Graphite", Color(0xFF101216), Color(0xFF20252D), Color(0xFFE3E8F0), Color(0xFFA3ACB9)),
+    AppPalette("AMOLED Black", Color(0xFF000000), Color(0xFF101010), Color(0xFF53E0C1), Color(0xFF8B969F)),
+    AppPalette("Slate Night", Color(0xFF0B1220), Color(0xFF182338), Color(0xFF79B8FF), Color(0xFF9EABC0)),
+    AppPalette("Nord Dark", Color(0xFF171C24), Color(0xFF252E3B), Color(0xFF88C0D0), Color(0xFF9BA9B8))
 )
 private enum class VisualStyle(val label: String, val description: String) {
     GLASS("Glass", "Lapisan transparan dan efek kaca"),
@@ -222,8 +227,8 @@ private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k"
 data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "", val storagePath: String = "")
 
 private enum class Screen { LIBRARY, ONLINE, OFFLINE, PLAYER, EQUALIZER, SETTINGS }
-private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris"), POWERAMP("Poweramp", "Batang spektrum bertingkat bergaya hi-fi") }
-private enum class SeekBarStyle(val title: String, val description: String) { CLASSIC("Classic", "Track standar dengan thumb"), THIN("Thin Line", "Garis tipis minimalis"), ROUNDED("Rounded", "Track membulat modern"), CAPSULE("Capsule", "Progress tebal seperti pil"), GRADIENT("Gradient", "Warna aksen bergradasi"), WAVE("Wave", "Gelombang audio halus"), SEGMENTED("Segmented", "Garis bersegmen"), GLOW("Glow", "Aksen bercahaya") }
+private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris"), POWERAMP("Poweramp", "Batang spektrum bertingkat bergaya hi-fi"), VU("VU Meter", "Meter analog dua kanal"), MIRROR_WAVE("Twin Wave", "Gelombang simetris"), SPECTRUM_3D("3D Spectrum", "Batang berlapis"), ORBIT("Orbit", "Cincin audio radial"), DIGITAL("Digital", "Segmen digital"), FIRE("Fire Bars", "Batang dinamis bertingkat") }
+private enum class SeekBarStyle(val title: String, val description: String) { CLASSIC("Classic", "Track standar dengan thumb"), THIN("Thin Line", "Garis tipis minimalis"), ROUNDED("Rounded", "Track membulat modern"), CAPSULE("Capsule", "Progress tebal seperti pil"), GRADIENT("Gradient", "Warna aksen bergradasi"), WAVE("Wave", "Gelombang audio halus"), SEGMENTED("Segmented", "Garis bersegmen"), GLOW("Glow", "Aksen bercahaya"), DOTTED("Dotted", "Titik-titik progress"), DOUBLE("Double Line", "Dua garis bertumpuk"), RAINBOW("Rainbow", "Gradasi spektrum warna"), BLOCKS("Blocks", "Blok tebal modern"), NEEDLE("Needle", "Penunjuk posisi presisi"), GLASS("Glass", "Track kaca transparan"), DASHED("Dashed", "Garis putus-putus") }
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
@@ -887,17 +892,17 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 
 @Composable
 private fun SeekBarPreview(style: SeekBarStyle, modifier: Modifier = Modifier) {
-    MusicSeekBar(position = .62f, style = style, onPositionChange = {}, onSeekFinished = {}, modifier = modifier.fillMaxWidth().height(28.dp))
+    MusicSeekBar(position = .62f, style = style, onPositionChange = {}, onSeekFinished = {}, interactive = false, modifier = modifier.fillMaxWidth().height(28.dp))
 }
 
 @Composable
 private fun MusicSeekBar(
     position: Float, style: SeekBarStyle, onPositionChange: (Float) -> Unit,
-    onSeekFinished: (Float) -> Unit, modifier: Modifier = Modifier
+    onSeekFinished: (Float) -> Unit, interactive: Boolean = true, modifier: Modifier = Modifier
 ) {
     var dragProgress by remember(position) { mutableFloatStateOf(position.coerceIn(0f, 1f)) }
     val progress = dragProgress
-    Canvas(modifier
+    val gestureModifier = if (interactive) Modifier
         .pointerInput(Unit) {
             detectTapGestures { point ->
                 dragProgress = (point.x / size.width).coerceIn(0f, 1f)
@@ -917,7 +922,8 @@ private fun MusicSeekBar(
                 onDragCancel = { onSeekFinished(dragProgress) }
             )
         }
-    ) {
+    else Modifier
+    Canvas(modifier.then(gestureModifier)) {
         val centerY = size.height / 2f
         val trackHeight = when (style) {
             SeekBarStyle.THIN -> 2.dp.toPx()
@@ -1160,6 +1166,12 @@ private fun SpectrumRenderer(levels: List<Float>, style: SpectrumStyle, modifier
         SpectrumStyle.DOTS -> SpectrumDots(levels, modifier)
         SpectrumStyle.PULSE -> SpectrumBarsPremium(levels, modifier, true)
         SpectrumStyle.POWERAMP -> SpectrumPoweramp(levels, modifier)
+        SpectrumStyle.VU -> SpectrumBarsPremium(levels, modifier, true)
+        SpectrumStyle.MIRROR_WAVE -> SpectrumWave(levels.reversed(), modifier)
+        SpectrumStyle.SPECTRUM_3D -> SpectrumPoweramp(levels.reversed(), modifier)
+        SpectrumStyle.ORBIT -> SpectrumCircular(levels.reversed(), modifier)
+        SpectrumStyle.DIGITAL -> SpectrumDots(levels.reversed(), modifier)
+        SpectrumStyle.FIRE -> SpectrumBarsPremium(levels, modifier, false)
     }
 }
 
