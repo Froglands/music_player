@@ -685,6 +685,7 @@ private fun MusicPlayerApp(
                             appContext.resources.updateConfiguration(configuration, appContext.resources.displayMetrics)
                         },
                         selectedVisualStyle = selectedVisualStyle,
+                        appVersion = BuildConfig.VERSION_NAME,
                         onVisualStyleSelected = { name ->
                             selectedVisualStyle = name
                             activeVisualStyle.value = VisualStyle.valueOf(name)
@@ -1094,7 +1095,7 @@ private fun SettingsScreen(
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
-    selectedVisualStyle: String, onVisualStyleSelected: (String) -> Unit
+    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf("") }
     fun tx(key: String) = appText(key, selectedLanguage)
@@ -1296,7 +1297,6 @@ private fun SettingsScreen(
                 var checking by remember { mutableStateOf(false) }
                 var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
                 var updateMessage by remember { mutableStateOf("Versi terpasang: v$appVersion") }
-                var checked by remember { mutableStateOf(false) }
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush())
                     .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp)).padding(16.dp)) {
                     Text("Versi saat ini", color = Muted, fontSize = 12.sp)
@@ -1320,7 +1320,7 @@ private fun SettingsScreen(
                             } catch (e: Exception) {
                                 updateInfo = null
                                 updateMessage = e.message ?: "Tidak dapat memeriksa pembaruan."
-                            } finally { checking = false; checked = true }
+                            } finally { checking = false }
                         }
                     }, enabled = !checking, modifier = Modifier.fillMaxWidth()) {
                         if (checking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
