@@ -1048,12 +1048,18 @@ private fun FullPlayer(
             }
         }
         Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = OnSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            IconButton(onClick = { showDetails = true }) { Icon(Icons.Default.Info, "Rincian lagu", tint = Mint) }
-        }
+        Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = OnSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         Text(track?.artist ?: metadata?.artist?.toString() ?: "Online stream", color = Muted, fontSize = 14.sp)
-        Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
+            if (track != null || metadata != null) {
+                TextButton(onClick = { showDetails = true }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                    Icon(Icons.Default.Info, null, tint = Mint, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Info", color = Mint, fontSize = 11.sp)
+                }
+            }
+        }
         track?.composer?.takeIf { it.isNotBlank() }?.let { Text("Composer: $it", color = Muted, fontSize = 10.sp) }
         Spacer(Modifier.height(22.dp))
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Panel.copy(alpha = .72f)).padding(horizontal = 12.dp, vertical = 10.dp)) {
