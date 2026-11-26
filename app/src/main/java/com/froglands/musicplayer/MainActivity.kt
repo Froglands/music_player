@@ -95,7 +95,7 @@ private val Muted get() = activePalette.value.muted
 private val TargetFrequencies = floatArrayOf(31f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 10000f, 12000f, 16000f)
 private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "10k", "12k", "16k")
 
-data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "")
+data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "", val storagePath: String = "")
 
 private enum class Screen { LIBRARY, ONLINE, OFFLINE, PLAYER, EQUALIZER, SETTINGS }
 private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris") }
@@ -178,8 +178,9 @@ class MainActivity : ComponentActivity() {
     private suspend fun queryTracks(): List<Track> = withContext(Dispatchers.IO) {
         val result = mutableListOf<Track>()
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.ALBUM_ARTIST, MediaStore.Audio.Media.YEAR, MediaStore.Audio.Media.TRACK, MediaStore.Audio.Media.COMPOSER)
-        contentResolver.query(collection, projection, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.ALBUM_ARTIST, MediaStore.Audio.Media.YEAR, MediaStore.Audio.Media.TRACK, MediaStore.Audio.Media.COMPOSER, MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.MIME_TYPE)
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} > 0"
+        contentResolver.query(collection, projection, selection, null, "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -190,11 +191,20 @@ class MainActivity : ComponentActivity() {
             val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val composerCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.COMPOSER)
+            val relativePathCol = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+            val dataPathCol = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+            val mimeCol = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
+                val duration = cursor.getLong(durationCol)
+                val mime = if (mimeCol >= 0) cursor.getString(mimeCol).orEmpty() else ""
+                if (duration <= 0L || (mime.isNotBlank() && !mime.startsWith("audio/"))) continue
+                val relativePath = if (relativePathCol >= 0) cursor.getString(relativePathCol).orEmpty() else ""
+                val absolutePath = if (dataPathCol >= 0) cursor.getString(dataPathCol).orEmpty() else ""
+                val storagePath = if (absolutePath.isNotBlank()) absolutePath else relativePath
                 result += Track(id, cursor.getString(titleCol) ?: "Unknown title",
                     cursor.getString(artistCol)?.takeUnless { it == "<unknown>" } ?: "Unknown artist",
-                    ContentUris.withAppendedId(collection, id), cursor.getLong(durationCol), cursor.getString(albumCol) ?: "Unknown album", cursor.getString(albumArtistCol) ?: "", cursor.getLong(albumIdCol), cursor.getInt(yearCol), cursor.getInt(trackCol), cursor.getString(composerCol) ?: "")
+                    ContentUris.withAppendedId(collection, id), duration, cursor.getString(albumCol) ?: "Unknown album", cursor.getString(albumArtistCol) ?: "", cursor.getLong(albumIdCol), cursor.getInt(yearCol), cursor.getInt(trackCol), cursor.getString(composerCol) ?: "", storagePath)
             }
         }
         result
@@ -221,6 +231,8 @@ private fun MusicPlayerApp(
     var selected by remember { mutableStateOf<Track?>(null) }
     var playing by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
+    var selectedFolder by rememberSaveable { mutableStateOf("Semua lokasi") }
+    var detailTrack by remember { mutableStateOf<Track?>(null) }
     var onlineUrl by remember { mutableStateOf("") }
     var screen by rememberSaveable { mutableStateOf(Screen.LIBRARY) }
     var libraryScrollIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -442,9 +454,18 @@ private fun MusicPlayerApp(
                             Spacer(Modifier.height(12.dp))
                             if (!hasPermission) EmptyState("Izinkan akses audio", "Agar aplikasi bisa membaca lagu di perangkat.", "Izinkan", requestPermission)
                             else {
+                                val folders = remember(tracks) { listOf("Semua lokasi") + tracks.map { it.storagePath.substringBeforeLast('/', it.storagePath).ifBlank { "Lokasi tidak diketahui" } }.distinct().sorted() }
+                                LaunchedEffect(folders) { if (selectedFolder !in folders) selectedFolder = "Semua lokasi" }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${tracks.size} lagu ditemukan", color = Muted, fontSize = 12.sp)
+                                    Text("${tracks.size} file musik terdeteksi", color = Muted, fontSize = 12.sp)
                                     TextButton(onClick = { tracks = emptyList() }) { Text("Muat ulang", color = Mint) }
+                                }
+                                Text("FILTER LOKASI", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    folders.forEach { folder ->
+                                        FilterChip(selected = selectedFolder == folder, onClick = { selectedFolder = folder },
+                                            label = { Text(if (folder == "Semua lokasi") folder else folder.substringAfterLast('/')) })
+                                    }
                                 }
                                 val libraryListState = rememberLazyListState(initialFirstVisibleItemIndex = libraryScrollIndex, initialFirstVisibleItemScrollOffset = libraryScrollOffset)
                                 LaunchedEffect(libraryListState) {
@@ -452,7 +473,7 @@ private fun MusicPlayerApp(
                                         .collect { (index, offset) -> libraryScrollIndex = index; libraryScrollOffset = offset }
                                 }
                                 LazyColumn(state = libraryListState, contentPadding = PaddingValues(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                    items(tracks.filter { it.title.contains(search, true) || it.artist.contains(search, true) }, key = { it.id }) { track ->
+                                    items(tracks.filter { (selectedFolder == "Semua lokasi" || it.storagePath.substringBeforeLast('/', it.storagePath).ifBlank { "Lokasi tidak diketahui" } == selectedFolder) && (it.title.contains(search, true) || it.artist.contains(search, true)) }, key = { it.id }) { track ->
                                         TrackRow(track, selected?.id == track.id, onClick = {
                                             selected = track
                                             player.setMediaItems(tracks.map { item ->
@@ -462,9 +483,10 @@ private fun MusicPlayerApp(
                                                 ).build()
                                             }, tracks.indexOf(track), 0L); player.prepare(); player.play()
                                             screen = Screen.PLAYER
-                                        })
+                                        }, onDetails = { detailTrack = track })
                                     }
                                 }
+                                if (detailTrack != null) TrackDetailsDialog(detailTrack!!, onDismiss = { detailTrack = null })
                             }
                         }
                     }
@@ -572,15 +594,46 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 )
 
 @Composable
-private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (active) Mint.copy(alpha = .13f) else Color.White.copy(alpha = .055f)).clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(Panel), contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = Mint) }
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+private fun TrackRow(track: Track, active: Boolean, onClick: () -> Unit, onDetails: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (active) Mint.copy(alpha = .13f) else Color.White.copy(alpha = .055f)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(Panel), contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = Mint) }
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(if (active) Icons.Default.Equalizer else Icons.Default.PlayArrow, null, tint = if (active) Mint else Muted)
         }
-        Icon(if (active) Icons.Default.Equalizer else Icons.Default.PlayArrow, null, tint = if (active) Mint else Muted)
+        IconButton(onClick = onDetails) { Icon(Icons.Default.Info, "Rincian lagu", tint = Mint) }
     }
+}
+
+@Composable
+private fun TrackDetailsDialog(track: Track, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss,
+        title = { Text("Rincian lagu", color = Color.White, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                @Composable fun detail(label: String, value: String) {
+                    Column {
+                        Text(label, color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(value.ifBlank { "Tidak tersedia" }, color = Color.White, fontSize = 13.sp)
+                    }
+                }
+                detail("JUDUL", track.title)
+                detail("ARTIS", track.artist)
+                detail("ALBUM", track.album)
+                detail("ARTIST ALBUM", track.albumArtist)
+                detail("TAHUN", if (track.year > 0) track.year.toString() else "")
+                detail("NOMOR TRACK", if (track.trackNumber > 0) track.trackNumber.toString() else "")
+                detail("KOMPOSER", track.composer)
+                detail("DURASI", formatTime(track.duration))
+                detail("JALUR PENYIMPANAN", track.storagePath.ifBlank { track.uri.toString() })
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("TUTUP", color = Mint) } },
+        containerColor = Panel
+    )
 }
 
 @Composable
