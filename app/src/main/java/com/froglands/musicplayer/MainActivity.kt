@@ -222,6 +222,7 @@ data class Track(val id: Long, val title: String, val artist: String, val uri: U
 
 private enum class Screen { LIBRARY, ONLINE, OFFLINE, PLAYER, EQUALIZER, SETTINGS }
 private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Gelombang halus"), BARS("Bars", "Batang gradasi"), MIRROR("Mirror", "Batang simetris"), CIRCULAR("Circular", "Melingkar"), LINE("Line", "Garis minimalis"), FILLED("Filled", "Gelombang terisi"), DOTS("Dots", "Titik responsif"), PULSE("Pulse", "Pulse simetris"), POWERAMP("Poweramp", "Batang spektrum bertingkat bergaya hi-fi") }
+private enum class SeekBarStyle(val title: String, val description: String) { CLASSIC("Classic", "Track standar dengan thumb"), THIN("Thin Line", "Garis tipis minimalis"), ROUNDED("Rounded", "Track membulat modern"), CAPSULE("Capsule", "Progress tebal seperti pil"), GRADIENT("Gradient", "Warna aksen bergradasi"), WAVE("Wave", "Gelombang audio halus"), SEGMENTED("Segmented", "Garis bersegmen"), GLOW("Glow", "Aksen bercahaya") }
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
@@ -303,7 +304,7 @@ class MainActivity : ComponentActivity() {
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
         val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.ALBUM_ARTIST, MediaStore.Audio.Media.YEAR, MediaStore.Audio.Media.TRACK, MediaStore.Audio.Media.COMPOSER, MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.MIME_TYPE)
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} > 0"
-        contentResolver.query(collection, projection, selection, null, "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
+        contentResolver.query(collection, projection, selection, null, "${MediaStore.Audio.Media.DATE_ADDED} DESC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -375,6 +376,7 @@ private fun MusicPlayerApp(
     var libraryScrollIndex by rememberSaveable { mutableIntStateOf(0) }
     var libraryScrollOffset by rememberSaveable { mutableIntStateOf(0) }
     var lyricsEnabled by rememberSaveable { mutableStateOf(true) }
+    var seekBarStyle by rememberSaveable { mutableStateOf(SeekBarStyle.ROUNDED) }
     var selectedTheme by rememberSaveable { mutableStateOf("Midnight") }
     var selectedVisualStyle by rememberSaveable { mutableStateOf(VisualStyle.GLASS.name) }
     var selectedLanguage by rememberSaveable { mutableStateOf("auto") }
@@ -428,6 +430,7 @@ private fun MusicPlayerApp(
         selectedTheme = preferences.getString("app_theme", "Midnight") ?: "Midnight"
         activePalette.value = AppPalettes.firstOrNull { it.name == selectedTheme } ?: AppPalettes.first()
         spectrumStyle = runCatching { SpectrumStyle.valueOf(preferences.getString("spectrum_style", "WAVE") ?: "WAVE") }.getOrDefault(SpectrumStyle.WAVE)
+        seekBarStyle = runCatching { SeekBarStyle.valueOf(preferences.getString("seekbar_style", "ROUNDED") ?: "ROUNDED") }.getOrDefault(SeekBarStyle.ROUNDED)
     }
     var audioSessionId by remember { mutableIntStateOf(0) }
     var liveMetadata by remember { mutableStateOf<androidx.media3.common.MediaMetadata?>(null) }
@@ -723,7 +726,7 @@ private fun MusicPlayerApp(
                     Screen.PLAYER -> FullPlayer(
                         track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, spectrumStyle = spectrumStyle, metadata = liveMetadata,
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
-                        lyricsEnabled = lyricsEnabled, lyricsText = lyricsText,
+                        lyricsEnabled = lyricsEnabled, lyricsText = lyricsText, seekBarStyle = seekBarStyle,
                         onLyricsChange = { lyricsText = it; preferences.edit().putString(lyricsKey, it).apply() },
                         onPrevious = {
                             val index = tracks.indexOfFirst { it.id == selected?.id }
@@ -739,8 +742,9 @@ private fun MusicPlayerApp(
                         subEnabled = subEnabled, onSubEnabled = { subEnabled = it }, subGain = subGain, onSubGain = { subGain = it },
                         subFrequency = subFrequency, onSubFrequency = { subFrequency = it }, status = eqStatus, onBack = { screen = Screen.PLAYER }
                     )
-                    Screen.SETTINGS -> SettingsScreen(spectrum, spectrumStyle,
+                    Screen.SETTINGS -> SettingsScreen(spectrum, spectrumStyle, seekBarStyle,
                         onStyleSelected = { style -> spectrumStyle = style; preferences.edit().putString("spectrum_style", style.name).apply() },
+                        onSeekBarStyleSelected = { style -> seekBarStyle = style; preferences.edit().putString("seekbar_style", style.name).apply() },
                         lyricsEnabled = lyricsEnabled,
                         onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() },
                         audioQuality = audioDownloadQuality, videoQuality = videoDownloadQuality,
@@ -881,11 +885,100 @@ private fun MiniPlayer(track: Track?, playing: Boolean, onOpen: () -> Unit, onTo
 }
 
 @Composable
+private fun SeekBarPreview(style: SeekBarStyle, modifier: Modifier = Modifier) {
+    MusicSeekBar(position = .62f, style = style, onPositionChange = {}, onSeekFinished = {}, modifier = modifier)
+}
+
+@Composable
+private fun MusicSeekBar(
+    position: Float, style: SeekBarStyle, onPositionChange: (Float) -> Unit,
+    onSeekFinished: () -> Unit, modifier: Modifier = Modifier
+) {
+    val progress = position.coerceIn(0f, 1f)
+    Canvas(modifier
+        .pointerInput(Unit) {
+            detectTapGestures { point ->
+                onPositionChange((point.x / size.width).coerceIn(0f, 1f))
+                onSeekFinished()
+            }
+        }
+        .pointerInput(Unit) {
+            detectDragGestures(
+                onDragStart = { point -> onPositionChange((point.x / size.width).coerceIn(0f, 1f)) },
+                onDrag = { change, _ ->
+                    onPositionChange((change.position.x / size.width).coerceIn(0f, 1f))
+                    change.consume()
+                },
+                onDragEnd = onSeekFinished,
+                onDragCancel = onSeekFinished
+            )
+        }
+    ) {
+        val centerY = size.height / 2f
+        val trackHeight = when (style) {
+            SeekBarStyle.THIN -> 2.dp.toPx()
+            SeekBarStyle.CAPSULE -> 8.dp.toPx()
+            SeekBarStyle.WAVE -> 4.dp.toPx()
+            else -> 5.dp.toPx()
+        }
+        val start = androidx.compose.ui.geometry.Offset(0f, centerY)
+        val end = androidx.compose.ui.geometry.Offset(size.width, centerY)
+        val activeEnd = androidx.compose.ui.geometry.Offset(size.width * progress, centerY)
+        val inactive = Color.White.copy(alpha = .18f)
+        if (style == SeekBarStyle.SEGMENTED) {
+            val count = 34
+            val gap = 3.dp.toPx()
+            val segmentWidth = (size.width - gap * (count - 1)) / count
+            repeat(count) { i ->
+                val x = i * (segmentWidth + gap)
+                val filled = x + segmentWidth / 2f <= size.width * progress
+                drawRoundRect(if (filled) Mint else inactive, androidx.compose.ui.geometry.Offset(x, centerY - 2.dp.toPx()), androidx.compose.ui.geometry.Size(segmentWidth, 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
+            }
+        } else if (style == SeekBarStyle.WAVE) {
+            val path = Path()
+            val amplitude = 3.dp.toPx()
+            val samples = 90
+            for (i in 0..samples) {
+                val x = size.width * i / samples
+                val y = centerY + sin(i * .34f) * amplitude
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, inactive, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+            val activePath = Path()
+            val limit = (samples * progress).toInt().coerceIn(0, samples)
+            for (i in 0..limit) {
+                val x = size.width * i / samples
+                val y = centerY + sin(i * .34f) * amplitude
+                if (i == 0) activePath.moveTo(x, y) else activePath.lineTo(x, y)
+            }
+            drawPath(activePath, Mint, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+        } else {
+            drawLine(inactive, start, end, trackHeight, StrokeCap.Round)
+            if (style == SeekBarStyle.GLOW && progress > 0f) {
+                drawLine(Mint.copy(alpha = .22f), start, activeEnd, 15.dp.toPx(), StrokeCap.Round)
+                drawLine(Mint.copy(alpha = .35f), start, activeEnd, 9.dp.toPx(), StrokeCap.Round)
+            }
+            val brush = if (style == SeekBarStyle.GRADIENT) Brush.horizontalGradient(listOf(Mint, Color(0xFF8B7CFF), Color(0xFFFF7DB8))) else Brush.horizontalGradient(listOf(Mint, Mint))
+            drawLine(brush, start, activeEnd, trackHeight, StrokeCap.Round)
+            when (style) {
+                SeekBarStyle.CLASSIC -> {
+                    drawCircle(Color.White, 6.dp.toPx(), activeEnd)
+                    drawCircle(Mint, 4.dp.toPx(), activeEnd)
+                }
+                SeekBarStyle.THIN -> drawCircle(Mint, 3.dp.toPx(), activeEnd)
+                SeekBarStyle.GLOW -> drawCircle(Mint.copy(alpha = .25f), 10.dp.toPx(), activeEnd)
+                else -> Unit
+            }
+        }
+    }
+}
+
+@Composable
 private fun FullPlayer(
     track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
     hasRecordPermission: Boolean, requestRecordPermission: () -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit,
-    lyricsEnabled: Boolean, lyricsText: String, onLyricsChange: (String) -> Unit
+    lyricsEnabled: Boolean, lyricsText: String, onLyricsChange: (String) -> Unit, seekBarStyle: SeekBarStyle
 ) {
     var position by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -936,7 +1029,7 @@ private fun FullPlayer(
         Text(spectrumStatus, color = if (spectrumStatus.contains("LIVE")) Mint else Muted, fontSize = 10.sp)
         if (!hasRecordPermission) TextButton(onClick = requestRecordPermission) { Text("Izinkan akses audio untuk spectrum", color = Mint) }
         Spacer(Modifier.height(10.dp))
-        Slider(value = position.coerceIn(0f, 1f), onValueChange = { position = it }, onValueChangeFinished = { if (duration > 0) player.seekTo((position * duration).toLong()) }, colors = SliderDefaults.colors(thumbColor = Mint, activeTrackColor = Mint, inactiveTrackColor = Color.White.copy(alpha = .16f)))
+        MusicSeekBar(position = position, style = seekBarStyle, onPositionChange = { position = it }, onSeekFinished = { if (duration > 0) player.seekTo((position * duration).toLong()) })
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(formatTime((position * duration).toLong()), color = Muted, fontSize = 11.sp)
             Text(formatTime(duration), color = Muted, fontSize = 11.sp)
@@ -1203,7 +1296,7 @@ private fun SpectrumDots(levels: List<Float>, modifier: Modifier) {
 
 @Composable
 private fun SettingsScreen(
-    spectrum: List<Float>, selectedStyle: SpectrumStyle, onStyleSelected: (SpectrumStyle) -> Unit,
+    spectrum: List<Float>, selectedStyle: SpectrumStyle, seekBarStyle: SeekBarStyle, onStyleSelected: (SpectrumStyle) -> Unit, onSeekBarStyleSelected: (SeekBarStyle) -> Unit,
     lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit,
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
@@ -1214,7 +1307,7 @@ private fun SettingsScreen(
     fun tx(key: String) = appText(key, selectedLanguage)
     BackHandler(enabled = section.isNotEmpty()) { section = "" }
     val pageTitle = when (section) {
-        "theme" -> tx("theme"); "visualizer" -> tx("visualizer"); "lyrics" -> tx("lyrics")
+        "theme" -> tx("theme"); "visualizer" -> tx("visualizer"); "seekbar" -> "Progress Bar"; "lyrics" -> tx("lyrics")
         "download" -> tx("downloads"); "credits" -> tx("credits"); "updates" -> "Pembaruan aplikasi"
         "language" -> tx("language"); "appearance" -> tx("appearance"); else -> tx("settings")
     }
@@ -1271,6 +1364,8 @@ private fun SettingsScreen(
                 settingsCard(Icons.Default.Info, tx("credits"), "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
                 Spacer(Modifier.height(10.dp))
                 settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya visual") { section = "visualizer" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.LinearScale, "Progress Bar", "${seekBarStyle.title} • ${SeekBarStyle.values().size} gaya tampilan") { section = "seekbar" }
             }
             "theme" -> {
                 Text("Pilih salah satu dari ${AppPalettes.size} kombinasi warna. Perubahan langsung diterapkan.", color = Muted, fontSize = 12.sp)
@@ -1324,6 +1419,31 @@ private fun SettingsScreen(
                     Spacer(Modifier.height(10.dp))
                 }
                 Text("Visualizer membaca FFT dari output audio pemutar, bukan mikrofon.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            }
+            "seekbar" -> {
+                Text("Pilih bentuk progress bar di bawah visualizer. Semua gaya mendukung sentuhan dan geser untuk mencari posisi lagu.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(14.dp))
+                SeekBarStyle.values().toList().chunked(2).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { style ->
+                            val active = style == seekBarStyle
+                            Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(if (active) Mint.copy(alpha = .10f) else Color.White.copy(alpha = .045f))
+                                .border(1.dp, if (active) Mint.copy(alpha = .70f) else Color.White.copy(alpha = .10f), RoundedCornerShape(18.dp))
+                                .clickable { onSeekBarStyleSelected(style) }.padding(12.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(style.title, color = if (active) Mint else Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    if (active) Icon(Icons.Default.CheckCircle, null, tint = Mint, modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(Modifier.height(12.dp))
+                                SeekBarPreview(style, Modifier.fillMaxWidth().height(20.dp))
+                                Spacer(Modifier.height(7.dp))
+                                Text(style.description, color = Muted, fontSize = 10.sp, lineHeight = 14.sp, minLines = 2)
+                            }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(9.dp))
+                }
             }
             "lyrics" -> Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .055f)).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
