@@ -1080,6 +1080,18 @@ private fun MusicSeekBar(
     }
 }
 
+private data class LrcLine(val timeMs: Long, val text: String)
+private fun parseLrcLyrics(source: String): List<LrcLine> {
+    val pattern = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\](.*)""")
+    return source.lineSequence().mapNotNull { line ->
+        val match = pattern.matchEntire(line.trim()) ?: return@mapNotNull null
+        val minutes = match.groupValues[1].toLongOrNull() ?: 0L
+        val seconds = match.groupValues[2].toLongOrNull() ?: 0L
+        val fraction = match.groupValues[3].padEnd(3, '0').take(3).toLongOrNull() ?: 0L
+        LrcLine(minutes * 60_000L + seconds * 1_000L + fraction, match.groupValues[4].trim())
+    }.sortedBy { it.timeMs }
+}
+
 @Composable
 private fun FullPlayer(
     track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
@@ -1159,21 +1171,42 @@ private fun FullPlayer(
         }
         Spacer(Modifier.height(12.dp))
         if (lyricsEnabled) {
-            Spacer(Modifier.height(16.dp))
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                .background(Panel)
-                .border(1.dp, Muted.copy(alpha = .22f), RoundedCornerShape(20.dp)).padding(16.dp)) {
+            Spacer(Modifier.height(12.dp))
+            Column(Modifier.fillMaxWidth().weight(1f, fill = false).clip(RoundedCornerShape(20.dp))
+                .background(Panel).border(1.dp, Muted.copy(alpha = .22f), RoundedCornerShape(20.dp)).padding(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Lyrics, null, tint = Mint)
                     Spacer(Modifier.width(8.dp))
-                    Text("LYRICS", color = OnSurface, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
-                    Text("Tersimpan otomatis", color = Muted, fontSize = 10.sp)
+                    Text("LYRICS", color = OnSurface, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text("SINKRON", color = Muted, fontSize = 9.sp)
                 }
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(value = lyricsText, onValueChange = onLyricsChange, modifier = Modifier.fillMaxWidth().heightIn(min = 132.dp, max = 220.dp),
-                    placeholder = { Text("Tempel atau tulis lirik lagu di sini…", color = Muted) },
-                    colors = fieldColors(), shape = RoundedCornerShape(14.dp), minLines = 4, maxLines = 8)
-                Text("Lirik disimpan per lagu di perangkat. Isi manual; aplikasi tidak mengambil lirik berhak cipta dari sumber tidak resmi.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                Spacer(Modifier.height(8.dp))
+                val timedLyrics = remember(lyricsText) { parseLrcLyrics(lyricsText) }
+                val activeIndex = timedLyrics.indexOfLast { it.timeMs <= (position * duration).toLong() }
+                if (timedLyrics.isNotEmpty()) {
+                    val lyricListState = rememberLazyListState()
+                    LaunchedEffect(activeIndex) {
+                        if (activeIndex >= 0) lyricListState.animateScrollToItem(activeIndex)
+                    }
+                    LazyColumn(state = lyricListState, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 190.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        items(timedLyrics.size) { index ->
+                            val line = timedLyrics[index]
+                            val active = index == activeIndex
+                            Text(line.text, color = if (active) Mint else Muted,
+                                fontSize = if (active) 17.sp else 13.sp,
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp))
+                        }
+                    }
+                } else if (lyricsText.isNotBlank()) {
+                    Text(lyricsText, color = OnSurface, fontSize = 13.sp, lineHeight = 21.sp,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).verticalScroll(rememberScrollState()))
+                } else {
+                    Text("Belum ada lirik untuk lagu ini. Tambahkan melalui Pengaturan → Manajemen Lirik.", color = Muted, fontSize = 12.sp)
+                }
             }
         }
     }
