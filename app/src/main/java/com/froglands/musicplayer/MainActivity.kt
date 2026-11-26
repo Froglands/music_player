@@ -1095,7 +1095,7 @@ private fun parseLrcLyrics(source: String): List<LrcLine> {
         val seconds = match.groupValues[2].toLongOrNull() ?: 0L
         val fraction = match.groupValues[3].padEnd(3, '0').take(3).toLongOrNull() ?: 0L
         LrcLine(minutes * 60_000L + seconds * 1_000L + fraction, match.groupValues[4].trim())
-    }.sortedBy { it.timeMs }
+    }.sortedBy { it.timeMs }.toList()
 }
 
 @Composable
@@ -1614,8 +1614,6 @@ private fun SettingsScreen(
                     }
                 }
                 groupTitle("PEMUTAR & AUDIO", "Kontrol pemutaran dan efek suara")
-                settingsCard(Icons.Default.Equalizer, "Audio Engine", "12-Band EQ • Deep Bass • Preset audio") { onOpenAudioEngine() }
-                Spacer(Modifier.height(8.dp))
                 settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya spektrum") { section = "visualizer" }
                 Spacer(Modifier.height(8.dp))
                 settingsCard(Icons.Default.LinearScale, "Progress Bar", "${seekBarStyle.title} • ${SeekBarStyle.values().size} gaya tampilan") { section = "seekbar" }
