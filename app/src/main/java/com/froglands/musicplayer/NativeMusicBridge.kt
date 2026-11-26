@@ -60,7 +60,7 @@ class NativeMusicBridge(private val activity: MainActivity, private val web: Web
             sendTracks("")
         }
     }
-    @JavascriptInterface fun searchTracks(q: String) = sendTracks(q)
+    @JavascriptInterface fun searchTracks(q: String, folder: String) = sendTracks(q, folder)
     @JavascriptInterface fun playTrack(index: Int) {
         val track = tracks.getOrNull(index) ?: return
         val items = tracks.map { t -> MediaItem.Builder().setUri(t.uri).setMediaMetadata(MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist).setAlbumTitle(t.album).build()).build() }
@@ -166,9 +166,9 @@ class NativeMusicBridge(private val activity: MainActivity, private val web: Web
         }
         return out
     }
-    private fun sendTracks(filter:String) {
+    private fun sendTracks(filter:String, folder:String = "") {
         val arr=JSONArray()
-        tracks.forEachIndexed { i,t -> if(t.title.contains(filter,true)||t.artist.contains(filter,true)) arr.put(JSONObject().put("index",i).put("title",t.title).put("artist",t.artist).put("duration",t.duration).put("path",t.storagePath)) }
+        tracks.forEachIndexed { i,t -> if((t.title.contains(filter,true)||t.artist.contains(filter,true)) && (folder.isBlank() || t.storagePath.substringBeforeLast("/",t.storagePath).contains(folder,true))) arr.put(JSONObject().put("index",i).put("title",t.title).put("artist",t.artist).put("duration",t.duration).put("path",t.storagePath)) }
         js("window.MusicUI&&window.MusicUI.setTracks(" + arr.toString() + ");")
     }
     private fun pushState() {
