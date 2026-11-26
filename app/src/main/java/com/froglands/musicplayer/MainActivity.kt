@@ -781,7 +781,8 @@ private fun MusicPlayerApp(
                             selectedVisualStyle = name
                             activeVisualStyle.value = VisualStyle.valueOf(name)
                             preferences.edit().putString("visual_style", name).apply()
-                        }
+                        },
+                        onOpenAudioEngine = { navigateTo(Screen.EQUALIZER) }
                     )
                 }
             }
@@ -1443,7 +1444,7 @@ private fun SettingsScreen(
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
-    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit
+    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, onOpenAudioEngine: () -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf("") }
     fun tx(key: String) = appText(key, selectedLanguage)
@@ -1498,7 +1499,7 @@ private fun SettingsScreen(
                     }
                 }
                 groupTitle("PEMUTAR & AUDIO", "Kontrol pemutaran dan efek suara")
-                settingsCard(Icons.Default.Equalizer, "Audio Engine", "12-Band EQ • Deep Bass • Preset audio") { section = "audio" }
+                settingsCard(Icons.Default.Equalizer, "Audio Engine", "12-Band EQ • Deep Bass • Preset audio") { onOpenAudioEngine() }
                 Spacer(Modifier.height(8.dp))
                 settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya spektrum") { section = "visualizer" }
                 Spacer(Modifier.height(8.dp))
