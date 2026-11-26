@@ -859,7 +859,8 @@ private fun MusicPlayerApp(
                             activeVisualStyle.value = VisualStyle.valueOf(name)
                             preferences.edit().putString("visual_style", name).apply()
                         },
-                        player = player
+                        player = player,
+                        preferences = preferences
                     )
                 }
             }
@@ -1095,17 +1096,6 @@ private fun parseLrcLyrics(source: String): List<LrcLine> {
     }.sortedBy { it.timeMs }
 }
 
-private data class LrcLine(val timeMs: Long, val text: String)
-private fun parseLrcLyrics(source: String): List<LrcLine> {
-    val pattern = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\](.*)""")
-    return source.lineSequence().mapNotNull { line ->
-        val match = pattern.matchEntire(line.trim()) ?: return@mapNotNull null
-        val minutes = match.groupValues[1].toLongOrNull() ?: 0L
-        val seconds = match.groupValues[2].toLongOrNull() ?: 0L
-        val fraction = match.groupValues[3].padEnd(3, '0').take(3).toLongOrNull() ?: 0L
-        LrcLine(minutes * 60_000L + seconds * 1_000L + fraction, match.groupValues[4].trim())
-    }.sortedBy { it.timeMs }
-}
 @Composable
 private fun FullPlayer(
     track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
@@ -1567,7 +1557,7 @@ private fun SettingsScreen(
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
-    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, player: ExoPlayer
+    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, player: ExoPlayer, preferences: android.content.SharedPreferences
 ) {
     var section by rememberSaveable { mutableStateOf("") }
     fun tx(key: String) = appText(key, selectedLanguage)
