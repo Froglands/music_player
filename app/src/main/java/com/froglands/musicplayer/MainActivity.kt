@@ -1020,7 +1020,7 @@ private fun FullPlayer(
         while (true) {
             duration = player.duration.takeIf { it > 0 } ?: track?.duration ?: 0L
             position = if (duration > 0) player.currentPosition.toFloat() / duration else 0f
-            delay(400)
+            delay(100)
         }
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
