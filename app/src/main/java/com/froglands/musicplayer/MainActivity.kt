@@ -1154,7 +1154,9 @@ private fun SettingsScreen(
                 Spacer(Modifier.height(10.dp))
                 settingsCard(Icons.Default.ViewInAr, tx("appearance"), "$selectedVisualStyle • Glass, 3D, Neon, Aurora") { section = "appearance" }
                 Spacer(Modifier.height(10.dp))
-                settingsCard(Icons.Default.SystemUpdate, "Pembaruan aplikasi", "Periksa versi terbaru dan unduh APK") { section = "updates" }\n                Spacer(Modifier.height(10.dp))\n                settingsCard(Icons.Default.Info, tx("credits"), "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
+                settingsCard(Icons.Default.SystemUpdate, "Pembaruan aplikasi", "Periksa versi terbaru dan unduh APK") { section = "updates" }
+                Spacer(Modifier.height(10.dp))
+                settingsCard(Icons.Default.Info, tx("credits"), "Informasi proyek, teknologi, dan atribusi") { section = "credits" }
             }
             "theme" -> {
                 Text("Pilih salah satu dari ${AppPalettes.size} kombinasi warna. Perubahan langsung diterapkan.", color = Muted, fontSize = 12.sp)
