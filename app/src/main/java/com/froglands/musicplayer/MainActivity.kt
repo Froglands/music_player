@@ -225,6 +225,7 @@ private enum class SpectrumStyle(val title: String, val description: String) { W
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
+    private var nativeBridge: NativeMusicBridge? = null
     private lateinit var mediaSession: MediaSession
     private lateinit var notificationManager: PlayerNotificationManager
     private var permissionGranted by mutableStateOf(false)
@@ -239,6 +240,14 @@ class MainActivity : ComponentActivity() {
     }
     private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         notificationPermission = it
+    }
+
+    fun requestAudioPermissionFromWeb() {
+        val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
+        permissionLauncher.launch(permission)
+    }
+    fun requestRecordPermissionFromWeb() {
+        recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -281,21 +290,27 @@ class MainActivity : ComponentActivity() {
         }
         if (!permissionGranted) permissionLauncher.launch(permission)
 
-        setContent {
-            MaterialTheme(colorScheme = darkColorScheme(
-                primary = Mint, background = Ink, surface = Panel,
-                onBackground = Color.White, onSurface = Color.White
-            )) {
-                MusicPlayerApp(
-                    player = player,
-                    hasPermission = permissionGranted,
-                    hasRecordPermission = recordPermission,
-                    requestPermission = { permissionLauncher.launch(permission) },
-                    requestRecordPermission = { recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                    loadTracks = { queryTracks() }
-                )
+        val webView = android.webkit.WebView(this).apply {
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.allowFileAccess = true
+            settings.allowContentAccess = false
+            settings.allowFileAccessFromFileURLs = false
+            settings.allowUniversalAccessFromFileURLs = false
+            settings.mediaPlaybackRequiresUserGesture = true
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    nativeBridge?.pageReady()
+                }
             }
+            webChromeClient = android.webkit.WebChromeClient()
         }
+        nativeBridge = NativeMusicBridge(this, webView, player)
+        webView.addJavascriptInterface(nativeBridge!!, "MusicNative")
+        setContentView(webView)
+        webView.loadUrl("file:///android_asset/www/index.html")
     }
 
     private suspend fun queryTracks(): List<Track> = withContext(Dispatchers.IO) {
@@ -349,6 +364,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        nativeBridge?.dispose()
+        nativeBridge = null
         notificationManager.setPlayer(null)
         mediaSession.release()
         player.release()
