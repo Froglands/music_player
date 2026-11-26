@@ -151,7 +151,6 @@ class NativeMusicBridge(private val activity: MainActivity, private val web: Web
         js("document.getElementById('eq-enabled').checked=" + eqEnabled + ";document.getElementById('bass-enabled').checked=" + bassEnabled + ";")
     }
     fun dispose() { player.removeListener(listener); releaseEffects(); scope.cancel() }
-    fun tick() = pushState()
 
     private fun readTracks(): List<Track> {
         val out=mutableListOf<Track>()
