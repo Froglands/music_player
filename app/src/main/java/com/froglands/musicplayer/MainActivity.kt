@@ -692,9 +692,41 @@ private fun MusicPlayerApp(
                             else {
                                 val folders = remember(tracks) { listOf("Semua lokasi") + tracks.map { it.storagePath.substringBeforeLast('/', it.storagePath).ifBlank { "Lokasi tidak diketahui" } }.distinct().sorted() }
                                 LaunchedEffect(folders) { if (selectedFolder !in folders) selectedFolder = "Semua lokasi" }
+                                var sortMenuOpen by remember { mutableStateOf(false) }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text("${tracks.size} file musik terdeteksi", color = Muted, fontSize = 12.sp)
-                                    TextButton(onClick = { tracks = emptyList() }) { Text("Muat ulang", color = Mint) }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box {
+                                            TextButton(onClick = { sortMenuOpen = true }) {
+                                                Icon(Icons.Default.Sort, null, tint = Mint)
+                                                Spacer(Modifier.width(5.dp))
+                                                Text("Urutkan", color = Mint)
+                                            }
+                                            DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                                                LibrarySort.values().forEach { option ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(option.label) },
+                                                        leadingIcon = { if (librarySort == option.name) Icon(Icons.Default.Check, null, tint = Mint) },
+                                                        onClick = {
+                                                            librarySort = option.name
+                                                            preferences.edit().putString("library_sort", option.name).apply()
+                                                            sortMenuOpen = false
+                                                        }
+                                                    )
+                                                }
+                                                Divider()
+                                                DropdownMenuItem(
+                                                    text = { Text(if (sortAscending) "Urutan naik" else "Urutan turun") },
+                                                    leadingIcon = { Icon(if (sortAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, null) },
+                                                    onClick = {
+                                                        sortAscending = !sortAscending
+                                                        preferences.edit().putBoolean("library_sort_ascending", sortAscending).apply()
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        TextButton(onClick = { tracks = emptyList() }) { Text("Muat ulang", color = Mint) }
+                                    }
                                 }
                                 Text("FILTER LOKASI", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -708,16 +740,34 @@ private fun MusicPlayerApp(
                                     snapshotFlow { libraryListState.firstVisibleItemIndex to libraryListState.firstVisibleItemScrollOffset }
                                         .collect { (index, offset) -> libraryScrollIndex = index; libraryScrollOffset = offset }
                                 }
+                                val visibleTracks = remember(tracks, selectedFolder, search, librarySort, sortAscending) {
+                                    val filtered = tracks.filter {
+                                        (selectedFolder == "Semua lokasi" || it.storagePath.substringBeforeLast('/', it.storagePath).ifBlank { "Lokasi tidak diketahui" } == selectedFolder) &&
+                                            (it.title.contains(search, true) || it.artist.contains(search, true) || it.album.contains(search, true))
+                                    }
+                                    val mode = runCatching { LibrarySort.valueOf(librarySort) }.getOrDefault(LibrarySort.DATE_ADDED)
+                                    val sorted = when (mode) {
+                                        LibrarySort.TITLE -> filtered.sortedBy { it.title.lowercase(Locale.ROOT) }
+                                        LibrarySort.ARTIST -> filtered.sortedBy { it.artist.lowercase(Locale.ROOT) }
+                                        LibrarySort.ALBUM -> filtered.sortedBy { it.album.lowercase(Locale.ROOT) }
+                                        LibrarySort.DATE_ADDED -> filtered.sortedBy { it.dateAdded }
+                                        LibrarySort.DATE_MODIFIED -> filtered.sortedBy { it.dateModified }
+                                        LibrarySort.DURATION -> filtered.sortedBy { it.duration }
+                                        LibrarySort.YEAR -> filtered.sortedBy { it.year }
+                                        LibrarySort.SIZE -> filtered.sortedBy { it.fileSize }
+                                    }
+                                    if (sortAscending) sorted else sorted.reversed()
+                                }
                                 LazyColumn(state = libraryListState, contentPadding = PaddingValues(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                    items(tracks.filter { (selectedFolder == "Semua lokasi" || it.storagePath.substringBeforeLast('/', it.storagePath).ifBlank { "Lokasi tidak diketahui" } == selectedFolder) && (it.title.contains(search, true) || it.artist.contains(search, true)) }, key = { it.id }) { track ->
+                                    items(visibleTracks, key = { it.id }) { track ->
                                         TrackRow(track, selected?.id == track.id, onClick = {
                                             selected = track
-                                            player.setMediaItems(tracks.map { item ->
+                                            player.setMediaItems(visibleTracks.map { item ->
                                                 MediaItem.Builder().setUri(item.uri).setMediaMetadata(
                                                     MediaMetadata.Builder().setTitle(item.title).setArtist(item.artist)
                                                         .setAlbumTitle(item.album).build()
                                                 ).build()
-                                            }, tracks.indexOf(track), 0L); player.prepare(); player.play()
+                                            }, visibleTracks.indexOf(track), 0L); player.prepare(); player.play()
                                             navigateTo(Screen.PLAYER)
                                         })
                                     }
