@@ -190,12 +190,21 @@ private fun appText(key: String, language: String): String {
 
 private val activeVisualStyle = mutableStateOf(VisualStyle.GLASS)
 private fun visualSurfaceBrush(): Brush = when (activeVisualStyle.value) {
-    VisualStyle.GLASS -> Brush.linearGradient(listOf(Color.White.copy(alpha = .12f), Panel.copy(alpha = .76f), Color.White.copy(alpha = .035f)))
+    // Aero-inspired glass: cool translucent tint, bright upper reflection and a darker lower edge.
+    VisualStyle.GLASS -> Brush.verticalGradient(colorStops = arrayOf(
+        0.00f to Color(0xBFEAF7FF), 0.035f to Color(0x66D8EEFF),
+        0.12f to Color(0x553D6685), 0.48f to Color(0x88405F78),
+        0.82f to Color(0xAA172B40), 1.00f to Color(0xCC091522)
+    ))
     VisualStyle.THREE_D -> Brush.verticalGradient(listOf(Color(0xFF526783), Panel, Color(0xFF080D18)))
     VisualStyle.NEON -> Brush.linearGradient(listOf(Mint.copy(alpha = .25f), Panel, Color(0xFF080D18)))
     VisualStyle.AURORA -> Brush.linearGradient(listOf(Mint.copy(alpha = .20f), Color(0xFF26304A), Panel))
     VisualStyle.MINIMAL -> Brush.linearGradient(listOf(Panel, Panel))
     VisualStyle.POWERAMP -> Brush.verticalGradient(listOf(Color(0xFF282B31), Color(0xFF101114), Color(0xFF050607)))
+}
+private fun visualSurfaceBorderBrush(): Brush = when (activeVisualStyle.value) {
+    VisualStyle.GLASS -> Brush.verticalGradient(listOf(Color(0xFFF3FBFF).copy(alpha = .82f), Color(0xFFB8D8F0).copy(alpha = .32f), Color(0xFF6F9AB9).copy(alpha = .48f)))
+    else -> Brush.linearGradient(listOf(Color.White.copy(alpha = .24f), Color.White.copy(alpha = .06f)))
 }
 private val activePalette = mutableStateOf(AppPalettes.first())
 private val Ink get() = activePalette.value.background
@@ -768,7 +777,7 @@ private fun MusicPlayerApp(
                     .shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 18.dp else 0.dp, RoundedCornerShape(22.dp), clip = false)
                     .clip(RoundedCornerShape(22.dp))
                     .background(visualSurfaceBrush())
-                    .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(22.dp))
+                    .border(if (activeVisualStyle.value == VisualStyle.GLASS) 1.25.dp else 1.dp, visualSurfaceBorderBrush(), RoundedCornerShape(22.dp))
                     .padding(horizontal = 4.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
@@ -1220,7 +1229,7 @@ private fun SettingsScreen(
         fun settingsCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
             Row(Modifier.fillMaxWidth().shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 14.dp else 0.dp, RoundedCornerShape(18.dp), clip = false)
                 .clip(RoundedCornerShape(18.dp)).background(visualSurfaceBrush())
-                .border(if (activeVisualStyle.value == VisualStyle.THREE_D) 1.5.dp else 1.dp, Color.White.copy(alpha = if (activeVisualStyle.value == VisualStyle.THREE_D) .30f else .10f), RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(16.dp),
+                .border(if (activeVisualStyle.value == VisualStyle.GLASS) 1.25.dp else if (activeVisualStyle.value == VisualStyle.THREE_D) 1.5.dp else 1.dp, visualSurfaceBorderBrush(), RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(46.dp).shadow(if (activeVisualStyle.value == VisualStyle.THREE_D) 8.dp else 0.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(Mint.copy(alpha = .22f)).border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                     Icon(icon, null, tint = Mint, modifier = Modifier.size(23.dp))
@@ -1361,7 +1370,7 @@ private fun SettingsScreen(
                 VisualStyle.values().forEach { style ->
                     val active = selectedVisualStyle == style.name
                     val cardBrush = when (style) {
-                        VisualStyle.GLASS -> Brush.linearGradient(listOf(Color.White.copy(alpha = .16f), Panel.copy(alpha = .75f)))
+                        VisualStyle.GLASS -> Brush.verticalGradient(listOf(Color(0xDDEAF7FF), Color(0x883D6685), Color(0xAA172B40), Color(0xCC091522)))
                         VisualStyle.THREE_D -> Brush.verticalGradient(listOf(Color(0xFF526783), Panel, Color(0xFF070B13)))
                         VisualStyle.NEON -> Brush.linearGradient(listOf(Mint.copy(alpha = .28f), Panel))
                         VisualStyle.AURORA -> Brush.linearGradient(listOf(Color(0xFF315C67), Color(0xFF33274D), Panel))
@@ -1369,7 +1378,7 @@ private fun SettingsScreen(
                         VisualStyle.POWERAMP -> Brush.verticalGradient(listOf(Color(0xFF282B31), Color(0xFF101114), Color(0xFF050607)))
                     }
                     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).shadow(if (style == VisualStyle.THREE_D) 18.dp else 0.dp, RoundedCornerShape(20.dp), clip = false).clip(RoundedCornerShape(20.dp))
-                        .background(cardBrush).border(if (active) 2.dp else 1.dp, if (active) Mint else Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
+                        .background(cardBrush).border(if (active) 2.dp else 1.dp, if (style == VisualStyle.GLASS) Brush.verticalGradient(listOf(Color.White.copy(alpha = .82f), Color(0xFFB8D8F0).copy(alpha = .30f), Color(0xFF6F9AB9).copy(alpha = .45f))) else if (active) Brush.linearGradient(listOf(Mint, Mint.copy(alpha = .35f))) else Brush.linearGradient(listOf(Color.White.copy(alpha = .18f), Color.White.copy(alpha = .06f))), RoundedCornerShape(20.dp))
                         .clickable { onVisualStyleSelected(style.name) }.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(style.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
