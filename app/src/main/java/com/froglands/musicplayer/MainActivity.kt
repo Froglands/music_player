@@ -480,7 +480,7 @@ private fun MusicPlayerApp(
         }
     }
     val currentPlaybackUri = player.currentMediaItem?.localConfiguration?.uri
-    val currentPlaybackTrack = tracks.firstOrNull { it.uri == currentPlaybackUri }
+    val currentPlaybackTrack = tracks.firstOrNull { it.uri.toString() == currentPlaybackUri?.toString() }
     val lyricsKey = currentPlaybackTrack?.let { "lyrics_${it.id}" }
         ?: currentPlaybackUri?.toString()?.let { "lyrics_$it" }
         ?: "lyrics_empty"
@@ -891,8 +891,12 @@ private fun MusicPlayerApp(
                         onLyricsTextChange = { value -> editorLyricsText = value },
                         onLyricsSave = { id, value ->
                             if (id > 0L) {
-                                preferences.edit().putString("lyrics_$id", value.trim()).apply()
-                                editorLyricsText = value.trim()
+                                val savedText = value.trim()
+                                val edit = preferences.edit()
+                                if (savedText.isBlank()) edit.remove("lyrics_$id") else edit.putString("lyrics_$id", savedText)
+                                edit.apply()
+                                editorLyricsText = savedText
+                                if (currentPlaybackTrack?.id == id) lyricsText = savedText
                             }
                         },
                         audioQuality = audioDownloadQuality, videoQuality = videoDownloadQuality,
@@ -1834,6 +1838,45 @@ private fun SettingsScreen(
 [00:12.00]Baris lirik pertama
 [00:17.50]Baris lirik kedua""",
                         color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Spacer(Modifier.height(12.dp))
+                    var lyricSyncMessage by remember { mutableStateOf("") }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("SINKRONKAN PER BARIS", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = {
+                            val playingUri = player.currentMediaItem?.localConfiguration?.uri?.toString()
+                            if (playingUri != targetTrack.uri.toString()) {
+                                lyricSyncMessage = "Putar lagu yang sedang diedit sebelum menandai waktunya."
+                            } else {
+                                val lines = lyricsText.lines().toMutableList()
+                                val timePattern = Regex("""^\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]""")
+                                val nextLine = lines.indexOfFirst { it.isNotBlank() && !timePattern.containsMatchIn(it.trim()) }
+                                if (nextLine >= 0) {
+                                    val time = player.currentPosition.coerceAtLeast(0L)
+                                    val minutes = time / 60000L
+                                    val seconds = (time % 60000L) / 1000L
+                                    val hundredths = (time % 1000L) / 10L
+                                    lines[nextLine] = "[${String.format(Locale.US, "%02d:%02d.%02d", minutes, seconds, hundredths)}] ${lines[nextLine].trim()}"
+                                    onLyricsTextChange(lines.joinToString("\n"))
+                                    lyricSyncMessage = "Timestamp ditambahkan pada baris ${nextLine + 1}. Tekan Simpan setelah selesai."
+                                } else {
+                                    lyricSyncMessage = "Semua baris sudah memiliki timestamp."
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Sync, null, tint = Mint, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Tandai waktu", color = Mint, fontSize = 11.sp)
+                        }
+                    }
+                    Text("Putar lagu ini, lalu tekan Tandai waktu tepat ketika baris lirik terdengar.", color = Muted, fontSize = 10.sp)
+                    if (lyricSyncMessage.isNotBlank()) Text(lyricSyncMessage, color = Mint, fontSize = 10.sp)
+                    Text("KECEPATAN ANIMASI LIRIK", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(value = lyricScrollSpeed, onValueChange = onLyricScrollSpeedChange,
+                            valueRange = 0.5f..2.5f, modifier = Modifier.weight(1f))
+                        Text("${String.format(Locale.US, "%.1f", lyricScrollSpeed)}x", color = OnSurface, fontSize = 12.sp)
+                    }
                     Spacer(Modifier.height(10.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { onLyricsTextChange("") }, modifier = Modifier.weight(1f)) {
@@ -1842,7 +1885,7 @@ private fun SettingsScreen(
                         Button(onClick = {
                             onLyricsSave(selectedLyricsTrackId, lyricsText)
                             lyricEditorVisible = false
-                        }, enabled = lyricsText.isNotBlank(), modifier = Modifier.weight(1f)) {
+                        }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Simpan")
