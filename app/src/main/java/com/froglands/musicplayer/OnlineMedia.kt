@@ -146,6 +146,7 @@ private fun extractYouTubeId(input: String): String? {
 private fun YouTubeEmbed(videoId: String, modifier: Modifier = Modifier) {
     var loadError by remember(videoId) { mutableStateOf<String?>(null) }
     var isLoading by remember(videoId) { mutableStateOf(true) }
+    var reloadToken by remember(videoId) { mutableIntStateOf(0) }
 
     Box(modifier.clip(RoundedCornerShape(18.dp)).border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp))) {
         AndroidView(
@@ -201,7 +202,7 @@ private fun YouTubeEmbed(videoId: String, modifier: Modifier = Modifier) {
                 }
             },
             update = { webView ->
-                val target = "youtube_embed_$videoId"
+                val target = "youtube_embed_${videoId}_$reloadToken"
                 if (webView.tag != target) {
                     webView.tag = target
                     val html = """
@@ -242,6 +243,7 @@ private fun YouTubeEmbed(videoId: String, modifier: Modifier = Modifier) {
                 TextButton(onClick = {
                     loadError = null
                     isLoading = true
+                    reloadToken++
                 }) { Text("Muat ulang", color = OnlineMint) }
             }
         }
