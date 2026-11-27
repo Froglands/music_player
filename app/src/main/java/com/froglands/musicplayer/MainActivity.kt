@@ -1763,13 +1763,18 @@ private fun SettingsScreen(
                 var skipSilenceEnabled by rememberSaveable { mutableStateOf(false) }
                 var speed by rememberSaveable { mutableFloatStateOf(1f) }
                 var pitch by rememberSaveable { mutableFloatStateOf(1f) }
+                var appliedSpeed by rememberSaveable { mutableFloatStateOf(1f) }
+                var appliedPitch by rememberSaveable { mutableFloatStateOf(1f) }
+                var playbackParameterStatus by remember { mutableStateOf("") }
                 var repeatMode by rememberSaveable { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
                 LaunchedEffect(Unit) {
                     focusEnabled = preferences.getBoolean("audio_focus", true)
                     gaplessEnabled = preferences.getBoolean("gapless_playback", true)
                     skipSilenceEnabled = preferences.getBoolean("skip_silence", false)
-                    speed = preferences.getFloat("playback_speed", 1f)
-                    pitch = preferences.getFloat("playback_pitch", 1f)
+                    speed = preferences.getFloat("playback_speed", 1f).coerceIn(.5f, 2f)
+                    pitch = preferences.getFloat("playback_pitch", 1f).coerceIn(.5f, 2f)
+                    appliedSpeed = speed
+                    appliedPitch = pitch
                     repeatMode = preferences.getInt("repeat_mode", Player.REPEAT_MODE_OFF)
                 }
                 LaunchedEffect(focusEnabled) {
@@ -1785,9 +1790,22 @@ private fun SettingsScreen(
                     player.skipSilenceEnabled = skipSilenceEnabled
                     preferences.edit().putBoolean("skip_silence", skipSilenceEnabled).apply()
                 }
-                LaunchedEffect(speed, pitch) {
-                    player.playbackParameters = PlaybackParameters(speed, pitch)
-                    preferences.edit().putFloat("playback_speed", speed).putFloat("playback_pitch", pitch).apply()
+                LaunchedEffect(appliedSpeed, appliedPitch) {
+                    val wasPlaying = player.isPlaying
+                    val shouldResume = player.playWhenReady
+                    val result = runCatching {
+                        player.playbackParameters = PlaybackParameters(appliedSpeed, appliedPitch)
+                    }
+                    if (result.isSuccess) {
+                        playbackParameterStatus = "Speed dan pitch diterapkan."
+                        preferences.edit().putFloat("playback_speed", appliedSpeed).putFloat("playback_pitch", appliedPitch).apply()
+                        if (shouldResume && !player.playWhenReady) player.playWhenReady = true
+                        if (wasPlaying && !player.isPlaying && player.playbackState == Player.STATE_READY) player.play()
+                    } else {
+                        playbackParameterStatus = "Gagal menerapkan pitch/speed: ${result.exceptionOrNull()?.message ?: "audio renderer error"}"
+                        speed = runCatching { player.playbackParameters.speed }.getOrDefault(1f)
+                        pitch = runCatching { player.playbackParameters.pitch }.getOrDefault(1f)
+                    }
                 }
                 LaunchedEffect(repeatMode) {
                     player.repeatMode = repeatMode
@@ -1800,9 +1818,10 @@ private fun SettingsScreen(
                 AudioSettingSwitch("Skip Silence", "Melewati bagian hening pada format yang didukung decoder.", skipSilenceEnabled) { skipSilenceEnabled = it }
                 Spacer(Modifier.height(10.dp))
                 Text("PLAYBACK SPEED  " + "%.2f".format(speed) + "×", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Slider(value = speed, onValueChange = { speed = it }, valueRange = .5f..2f)
+                Slider(value = speed, onValueChange = { speed = it }, onValueChangeFinished = { appliedSpeed = speed })
                 Text("PITCH  " + "%.2f".format(pitch) + "×", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Slider(value = pitch, onValueChange = { pitch = it }, valueRange = .5f..2f)
+                Slider(value = pitch, onValueChange = { pitch = it }, onValueChangeFinished = { appliedPitch = pitch })
+                Text(playbackParameterStatus, color = Muted, fontSize = 10.sp)
                 Text("REPEAT MODE", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf("Off" to Player.REPEAT_MODE_OFF, "All" to Player.REPEAT_MODE_ALL, "One" to Player.REPEAT_MODE_ONE).forEach { (label, value) ->
