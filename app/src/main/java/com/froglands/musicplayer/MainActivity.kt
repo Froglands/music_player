@@ -1865,9 +1865,19 @@ private fun SettingsScreen(
                 AudioSettingSwitch("Skip Silence", "Melewati bagian hening pada format yang didukung decoder.", skipSilenceEnabled) { skipSilenceEnabled = it }
                 Spacer(Modifier.height(10.dp))
                 Text("PLAYBACK SPEED  " + "%.2f".format(speed) + "×", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Slider(value = speed, onValueChange = { speed = it }, onValueChangeFinished = { appliedSpeed = speed })
+                Slider(
+                    value = speed.coerceIn(0.5f, 2f),
+                    onValueChange = { speed = it.coerceIn(0.5f, 2f) },
+                    valueRange = 0.5f..2f,
+                    onValueChangeFinished = { appliedSpeed = speed.coerceIn(0.5f, 2f) }
+                )
                 Text("PITCH  " + "%.2f".format(pitch) + "×", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Slider(value = pitch, onValueChange = { pitch = it }, onValueChangeFinished = { appliedPitch = pitch })
+                Slider(
+                    value = pitch.coerceIn(0.5f, 2f),
+                    onValueChange = { pitch = it.coerceIn(0.5f, 2f) },
+                    valueRange = 0.5f..2f,
+                    onValueChangeFinished = { appliedPitch = pitch.coerceIn(0.5f, 2f) }
+                )
                 Text(playbackParameterStatus, color = Muted, fontSize = 10.sp)
                 Text("REPEAT MODE", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
