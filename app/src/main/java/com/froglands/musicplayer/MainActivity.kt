@@ -949,7 +949,8 @@ private fun MusicPlayerApp(
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedBorderColor = Color.White.copy(alpha = .12f), focusedBorderColor = Mint,
-    unfocusedTextColor = OnSurface, focusedTextColor = OnSurface
+    unfocusedTextColor = OnSurface, focusedTextColor = OnSurface,
+    unfocusedPlaceholderColor = OnSurface.copy(alpha = .55f), focusedPlaceholderColor = OnSurface.copy(alpha = .65f)
 )
 
 @Composable
@@ -1207,13 +1208,13 @@ private fun FullPlayer(
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onPrevious, modifier = Modifier.size(54.dp)) { Icon(Icons.Default.SkipPrevious, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
+            IconButton(onClick = onPrevious, modifier = Modifier.size(54.dp)) { Icon(Icons.Default.SkipPrevious, null, tint = OnSurface, modifier = Modifier.size(32.dp)) }
             Spacer(Modifier.width(18.dp))
             IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }, modifier = Modifier.size(68.dp).clip(CircleShape).background(Mint)) {
                 Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Ink, modifier = Modifier.size(38.dp))
             }
             Spacer(Modifier.width(18.dp))
-            IconButton(onClick = onNext, modifier = Modifier.size(54.dp)) { Icon(Icons.Default.SkipNext, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
+            IconButton(onClick = onNext, modifier = Modifier.size(54.dp)) { Icon(Icons.Default.SkipNext, null, tint = OnSurface, modifier = Modifier.size(32.dp)) }
         }
         Spacer(Modifier.height(12.dp))
         if (lyricsEnabled) {
@@ -1612,7 +1613,7 @@ private fun SettingsScreen(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
         if (section.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { section = "" }) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
+                IconButton(onClick = { section = "" }) { Icon(Icons.Default.ArrowBack, null, tint = OnSurface) }
                 Column {
                     Text(tx("settings").uppercase(), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                     Text(pageTitle, color = OnSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -2228,7 +2229,7 @@ private fun VerticalEqFader(
         drawCircle(activeColor.copy(alpha = .12f), radius = 15.dp.toPx(), center = androidx.compose.ui.geometry.Offset(centerX, knobY))
         drawRoundRect(activeColor, androidx.compose.ui.geometry.Offset(centerX - 11.dp.toPx(), knobY - 7.dp.toPx()), androidx.compose.ui.geometry.Size(22.dp.toPx(), 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(7.dp.toPx(), 7.dp.toPx()))
         drawCircle(OnSurface.copy(alpha = if (enabled) .8f else .35f), radius = 2.dp.toPx(), center = androidx.compose.ui.geometry.Offset(centerX, knobY))
-        drawLine(Color.White.copy(alpha = .22f), androidx.compose.ui.geometry.Offset(centerX - 9.dp.toPx(), centerY), androidx.compose.ui.geometry.Offset(centerX + 9.dp.toPx(), centerY), strokeWidth = 1.dp.toPx())
+        drawLine(OnSurface.copy(alpha = .22f), androidx.compose.ui.geometry.Offset(centerX - 9.dp.toPx(), centerY), androidx.compose.ui.geometry.Offset(centerX + 9.dp.toPx(), centerY), strokeWidth = 1.dp.toPx())
     }
 }
 
