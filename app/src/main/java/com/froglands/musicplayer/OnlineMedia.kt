@@ -144,38 +144,109 @@ private fun extractYouTubeId(input: String): String? {
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun YouTubeEmbed(videoId: String, modifier: Modifier = Modifier) {
-    AndroidView(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp)),
-        factory = { context ->
-            WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.allowFileAccess = false
-                settings.allowContentAccess = false
-                settings.mediaPlaybackRequiresUserGesture = true
-                webViewClient = WebViewClient()
-                webChromeClient = WebChromeClient()
+    var loadError by remember(videoId) { mutableStateOf<String?>(null) }
+    var isLoading by remember(videoId) { mutableStateOf(true) }
+
+    Box(modifier.clip(RoundedCornerShape(18.dp)).border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp))) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                WebView(context).apply {
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.databaseEnabled = true
+                    settings.allowFileAccess = false
+                    settings.allowContentAccess = false
+                    settings.mediaPlaybackRequiresUserGesture = true
+                    settings.loadsImagesAutomatically = true
+                    settings.javaScriptCanOpenWindowsAutomatically = false
+                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                    settings.userAgentString = settings.userAgentString
+                        .replace("; wv", "")
+                        .replace("Version/4.0 ", "")
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                            isLoading = true
+                            loadError = null
+                        }
+
+                        override fun onPageFinished(view: WebView, url: String?) {
+                            isLoading = false
+                        }
+
+                        override fun onReceivedError(
+                            view: WebView,
+                            request: android.webkit.WebResourceRequest,
+                            error: android.webkit.WebResourceError
+                        ) {
+                            if (request.isForMainFrame) {
+                                isLoading = false
+                                loadError = "Gagal memuat pemutar (" + error.errorCode + "). Periksa koneksi internet lalu coba lagi."
+                            }
+                        }
+
+                        override fun onReceivedHttpError(
+                            view: WebView,
+                            request: android.webkit.WebResourceRequest,
+                            errorResponse: android.webkit.WebResourceResponse
+                        ) {
+                            if (request.isForMainFrame && errorResponse.statusCode >= 400) {
+                                isLoading = false
+                                loadError = "Server pemutar mengembalikan HTTP " + errorResponse.statusCode + "."
+                            }
+                        }
+                    }
+                    webChromeClient = WebChromeClient()
+                }
+            },
+            update = { webView ->
+                val target = "youtube_embed_$videoId"
+                if (webView.tag != target) {
+                    webView.tag = target
+                    val html = """
+                        <!doctype html>
+                        <html><head>
+                        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+                        <meta name="referrer" content="strict-origin-when-cross-origin">
+                        <style>
+                          html,body{margin:0;padding:0;background:#000;width:100%;height:100%;overflow:hidden}
+                          #player{position:absolute;inset:0;width:100%;height:100%;border:0}
+                        </style></head><body>
+                        <iframe id="player"
+                          src="https://www.youtube.com/embed/$videoId?playsinline=1&autoplay=0&controls=1&rel=0&enablejsapi=1"
+                          title="YouTube video player"
+                          referrerpolicy="strict-origin-when-cross-origin"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowfullscreen></iframe>
+                        </body></html>
+                    """.trimIndent()
+                    webView.loadDataWithBaseURL("https://www.youtube.com/", html, "text/html", "UTF-8", null)
+                }
             }
-        },
-        update = { webView ->
-            val target = "youtube_embed_$videoId"
-            if (webView.tag != target) {
-                webView.tag = target
-                val html = """
-                    <!doctype html><html><head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-                    <style>html,body{margin:0;padding:0;background:#000;width:100%;height:100%;overflow:hidden}
-                    iframe{border:0;width:100%;height:100%}</style></head><body>
-                    <iframe src="https://www.youtube.com/embed/$videoId?playsinline=1&autoplay=0&enablejsapi=1&origin=https%3A%2F%2Fwww.youtube.com"
-                    title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-                    </body></html>
-                """.trimIndent()
-                webView.loadDataWithBaseURL("https://www.youtube.com/", html, "text/html", "UTF-8", null)
+        )
+        if (isLoading && loadError == null) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center).size(30.dp),
+                color = OnlineMint,
+                strokeWidth = 3.dp
+            )
+        }
+        if (loadError != null) {
+            Column(
+                Modifier.align(Alignment.Center).fillMaxWidth().padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(loadError!!, color = Color.White, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = {
+                    loadError = null
+                    isLoading = true
+                }) { Text("Muat ulang", color = OnlineMint) }
             }
         }
-    )
+    }
 }
-
 @Composable
 fun OfflineMediaScreen(
     files: List<File>,
