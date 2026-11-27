@@ -92,6 +92,33 @@ import kotlinx.coroutines.launch
 import kotlin.math.*
 
 
+
+private data class LyricsSearchResult(val trackName: String, val artistName: String, val albumName: String, val duration: Double, val plainLyrics: String, val syncedLyrics: String)
+
+private suspend fun searchOnlineLyrics(query: String): List<LyricsSearchResult> = withContext(Dispatchers.IO) {
+    val encoded = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+    val connection = (URL("https://lrclib.net/api/search?q=$encoded").openConnection() as HttpURLConnection).apply {
+        connectTimeout = 10000
+        readTimeout = 12000
+        requestMethod = "GET"
+        setRequestProperty("User-Agent", "Froglands-MusicPlayer/1.0")
+        setRequestProperty("Accept", "application/json")
+    }
+    try {
+        if (connection.responseCode !in 200..299) throw IllegalStateException("Pencarian lirik gagal (HTTP ${connection.responseCode}).")
+        val array = org.json.JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+        (0 until array.length()).mapNotNull { i ->
+            val item = array.optJSONObject(i) ?: return@mapNotNull null
+            val plain = item.optString("plainLyrics").takeUnless { it == "null" } ?: ""
+            val synced = item.optString("syncedLyrics").takeUnless { it == "null" } ?: ""
+            if (plain.isBlank() && synced.isBlank()) null else LyricsSearchResult(
+                item.optString("trackName"), item.optString("artistName"), item.optString("albumName"),
+                item.optDouble("duration", 0.0), plain, synced
+            )
+        }
+    } finally { connection.disconnect() }
+}
+
 private data class AppUpdateInfo(val version: String, val notes: String, val apkUrl: String)
 
 private suspend fun fetchLatestAppUpdate(currentVersion: String): AppUpdateInfo? = withContext(Dispatchers.IO) {
@@ -1768,7 +1795,25 @@ private fun SettingsScreen(
                 Text("Pilih lagu dari koleksi, lalu tulis atau tempel lirik. Lirik disimpan per lagu dan otomatis muncul di Now Playing.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(12.dp))
                 var lyricSearch by rememberSaveable { mutableStateOf("") }
+                var onlineLyricResults by remember { mutableStateOf<List<LyricsSearchResult>>(emptyList()) }
+                var lyricSearchBusy by remember { mutableStateOf(false) }
+                var lyricSearchMessage by remember { mutableStateOf("") }
+                val lyricScope = rememberCoroutineScope()
                 val targetTrack = tracks.firstOrNull { it.id == selectedLyricsTrackId }
+                fun searchLyricsForTrack(track: Track) {
+                    lyricSearchBusy = true
+                    lyricSearchMessage = "Mencari lirik untuk ${track.title}..."
+                    onlineLyricResults = emptyList()
+                    lyricScope.launch {
+                        try {
+                            val results = searchOnlineLyrics("${track.title} ${track.artist}")
+                            onlineLyricResults = results
+                            lyricSearchMessage = if (results.isEmpty()) "Lirik tidak ditemukan. Coba cari dengan judul atau artis yang lebih tepat." else "${results.size} hasil ditemukan. Pilih yang paling sesuai."
+                        } catch (error: Exception) {
+                            lyricSearchMessage = error.message ?: "Tidak dapat mencari lirik. Periksa koneksi internet."
+                        } finally { lyricSearchBusy = false }
+                    }
+                }
                 OutlinedTextField(value = lyricSearch, onValueChange = { lyricSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     placeholder = { Text("Cari judul, artis, atau album") }, leadingIcon = { Icon(Icons.Default.Search, null) }, colors = fieldColors())
                 Spacer(Modifier.height(8.dp))
@@ -1788,6 +1833,41 @@ private fun SettingsScreen(
                 }
                 if (targetTrack != null) {
                     Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("CARI LIRIK OTOMATIS", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("Sumber: LRCLIB • hasil dipilih manual sebelum disimpan", color = Muted, fontSize = 10.sp)
+                        }
+                        Button(onClick = { searchLyricsForTrack(targetTrack) }, enabled = !lyricSearchBusy) {
+                            if (lyricSearchBusy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            else Icon(Icons.Default.Search, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (lyricSearchBusy) "Mencari" else "Cari lirik")
+                        }
+                    }
+                    if (lyricSearchMessage.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(lyricSearchMessage, color = Muted, fontSize = 10.sp)
+                    }
+                    if (onlineLyricResults.isNotEmpty()) {
+                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 190.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            items(onlineLyricResults.size) { index ->
+                                val result = onlineLyricResults[index]
+                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Panel)
+                                    .clickable {
+                                        onLyricsTextChange(result.syncedLyrics.ifBlank { result.plainLyrics })
+                                        lyricSearchMessage = "Lirik dipasang. Periksa kecocokan sebelum meninggalkan halaman."
+                                        onlineLyricResults = emptyList()
+                                    }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(result.trackName, color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(result.artistName + if (result.albumName.isNotBlank()) " • ${result.albumName}" else "", color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Text(if (result.syncedLyrics.isNotBlank()) "LRC" else "TEXT", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
                     OutlinedTextField(value = lyricsText, onValueChange = onLyricsTextChange,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 320.dp), minLines = 6, maxLines = 14,
                         placeholder = { Text("Tempel lirik biasa atau format LRC dengan timestamp…") }, colors = fieldColors())
@@ -1895,13 +1975,13 @@ private fun SettingsScreen(
                     color = Muted, fontSize = 10.sp, lineHeight = 15.sp
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("MASTER VOLUME  ${"%.0f".format(masterVolume * 100f)}%", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Text("MASTER VOLUME  ${"%.1f".format(masterVolume * 100f)}%", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { onMasterVolumeChange(if (masterVolume > 0f) 0f else 0.75f) }) {
                         Icon(if (masterVolume <= 0f) Icons.Default.VolumeOff else Icons.Default.VolumeUp, null, tint = Mint)
                     }
-                    Slider(value = masterVolume, onValueChange = onMasterVolumeChange, valueRange = 0f..1f, modifier = Modifier.weight(1f))
-                    Text("${(masterVolume * 100).toInt()}%", color = OnSurface, fontSize = 11.sp)
+                    Slider(value = masterVolume, onValueChange = onMasterVolumeChange, valueRange = 0f..1f, steps = 999, modifier = Modifier.weight(1f))
+                    Text("${"%.1f".format(masterVolume * 100f)}%", color = OnSurface, fontSize = 11.sp)
                 }
                 Text("Volume ini hanya mengatur output aplikasi, tidak mengubah volume sistem atau aplikasi lain.", color = Muted, fontSize = 10.sp)
                 Spacer(Modifier.height(10.dp))
@@ -2133,7 +2213,7 @@ private fun EqualizerScreen(
         )
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             presets.forEach { (name, values) ->
-                AssistChip(onClick = { onEnabled(true); values.forEachIndexed { i, value -> onLevel(i, value) } }, label = { Text(name) })
+                AssistChip(onClick = { onEnabled(true); values.forEachIndexed { i, value -> onLevel(i, value) } }, colors = AssistChipDefaults.assistChipColors(containerColor = Panel, labelColor = OnSurface, leadingIconContentColor = OnSurface, trailingIconContentColor = OnSurface), border = androidx.compose.foundation.BorderStroke(1.dp, if (Ink.luminance() > 0.5f) Color(0xFF8A929E) else Muted.copy(alpha = .55f)), label = { Text(name, color = OnSurface, fontWeight = FontWeight.SemiBold) })
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
