@@ -479,7 +479,11 @@ private fun MusicPlayerApp(
             downloadBusy = false
         }
     }
-    val lyricsKey = selected?.let { "lyrics_${it.id}" } ?: player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { "lyrics_$it" } ?: "lyrics_empty"
+    val currentPlaybackUri = player.currentMediaItem?.localConfiguration?.uri
+    val currentPlaybackTrack = tracks.firstOrNull { it.uri == currentPlaybackUri }
+    val lyricsKey = currentPlaybackTrack?.let { "lyrics_${it.id}" }
+        ?: currentPlaybackUri?.toString()?.let { "lyrics_$it" }
+        ?: "lyrics_empty"
     LaunchedEffect(lyricsKey) { lyricsText = preferences.getString(lyricsKey, "") ?: "" }
     LaunchedEffect(lyricsTargetId, tracks) { if (lyricsTargetId > 0L) editorLyricsText = preferences.getString("lyrics_$lyricsTargetId", "") ?: "" }
     var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
@@ -884,9 +888,12 @@ private fun MusicPlayerApp(
                             lyricsTargetId = id
                             editorLyricsText = preferences.getString("lyrics_${id}", "") ?: ""
                         },
-                        onLyricsTextChange = { value ->
-                            editorLyricsText = value
-                            if (lyricsTargetId > 0L) preferences.edit().putString("lyrics_${lyricsTargetId}", value).apply()
+                        onLyricsTextChange = { value -> editorLyricsText = value },
+                        onLyricsSave = { id, value ->
+                            if (id > 0L) {
+                                preferences.edit().putString("lyrics_$id", value.trim()).apply()
+                                editorLyricsText = value.trim()
+                            }
                         },
                         audioQuality = audioDownloadQuality, videoQuality = videoDownloadQuality,
                         onAudioQuality = { value -> audioDownloadQuality = value; preferences.edit().putString("download_audio_quality", value).apply() },
@@ -928,7 +935,7 @@ private fun MusicPlayerApp(
                 }
             }
 
-            if (screen != Screen.PLAYER && screen != Screen.EQUALIZER) {
+            if (screen != Screen.PLAYER && screen != Screen.EQUALIZER && screen != Screen.SETTINGS) {
                 MiniPlayer(track = selected, playing = playing, onOpen = { screen = Screen.PLAYER }, onToggle = { if (player.isPlaying) player.pause() else player.play() })
             }
             Row(
@@ -1608,6 +1615,7 @@ private fun SettingsScreen(
     spectrum: List<Float>, selectedStyle: SpectrumStyle, seekBarStyle: SeekBarStyle, onStyleSelected: (SpectrumStyle) -> Unit, onSeekBarStyleSelected: (SeekBarStyle) -> Unit,
     lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit,
     tracks: List<Track>, lyricsText: String, selectedLyricsTrackId: Long, onLyricsTrackSelected: (Long) -> Unit, onLyricsTextChange: (String) -> Unit,
+    onLyricsSave: (Long, String) -> Unit,
     lyricScrollSpeed: Float, onLyricScrollSpeedChange: (Float) -> Unit,
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
@@ -1777,106 +1785,78 @@ private fun SettingsScreen(
                 }
             }
             "lyrics" -> {
-                val context = LocalContext.current
                 var lyricSearch by rememberSaveable { mutableStateOf("") }
-                var metadataStatus by remember { mutableStateOf("Pilih lagu untuk memeriksa lirik di metadata file.") }
-                var metadataBusy by remember { mutableStateOf(false) }
-                val lyricScope = rememberCoroutineScope()
+                var lyricEditorVisible by rememberSaveable { mutableStateOf(false) }
                 val targetTrack = tracks.firstOrNull { it.id == selectedLyricsTrackId }
 
-                LaunchedEffect(selectedLyricsTrackId) {
-                    val track = targetTrack
-                    if (track == null) {
-                        metadataStatus = "Pilih lagu. Kamu juga bisa menempelkan lirik secara manual."
-                    } else {
-                        val savedLyrics = preferences.getString("lyrics_${track.id}", "").orEmpty()
-                        if (savedLyrics.isNotBlank()) {
-                            metadataStatus = "Lirik manual sudah tersimpan untuk lagu ini."
-                        } else {
-                            metadataBusy = true
-                            metadataStatus = "Memeriksa metadata audio..."
-                            val embedded = readEmbeddedLyrics(context, track.uri)
-                            if (!embedded.isNullOrBlank()) {
-                                onLyricsTrackSelected(track.id)
-                                onLyricsTextChange(embedded)
-                                metadataStatus = "Lirik ditemukan di metadata file dan otomatis dimasukkan."
-                            } else {
-                                metadataStatus = "Tidak ada lirik di metadata file. Tempel lirik secara manual di bawah."
+                Text("Cari lagu, pilih salah satu, lalu masukkan liriknya. Lirik baru masuk ke pemutar setelah tombol Simpan ditekan.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(value = lyricSearch, onValueChange = { lyricSearch = it },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    placeholder = { Text("Cari judul, artis, atau album") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) }, colors = fieldColors())
+                Spacer(Modifier.height(10.dp))
+                Text("DAFTAR LAGU", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = if (lyricEditorVisible) 210.dp else 430.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    items(
+                        tracks.filter { it.title.contains(lyricSearch, true) || it.artist.contains(lyricSearch, true) || it.album.contains(lyricSearch, true) },
+                        key = { it.id }
+                    ) { item ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(if (selectedLyricsTrackId == item.id) Mint.copy(alpha = .13f) else Panel)
+                            .clickable {
+                                onLyricsTrackSelected(item.id)
+                                lyricEditorVisible = true
+                            }.padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, color = OnSurface, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(item.artist, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-                            metadataBusy = false
+                            Text(if (selectedLyricsTrackId == item.id) "Dipilih" else "Pilih",
+                                color = if (selectedLyricsTrackId == item.id) Mint else Muted, fontSize = 10.sp)
                         }
                     }
                 }
 
-                Text("Lirik ditampilkan mengikuti waktu lagu. Gunakan format timestamp [mm:ss.xx] di awal setiap baris untuk mengatur kapan lirik muncul.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = lyricSearch, onValueChange = { lyricSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    placeholder = { Text("Cari judul, artis, atau album") }, leadingIcon = { Icon(Icons.Default.Search, null) }, colors = fieldColors())
-                Spacer(Modifier.height(8.dp))
-                Text(if (targetTrack == null) "PILIH LAGU" else "EDIT: ${targetTrack.title}", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 220.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(tracks.filter { it.title.contains(lyricSearch, true) || it.artist.contains(lyricSearch, true) || it.album.contains(lyricSearch, true) }, key = { it.id }) { item ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(if (selectedLyricsTrackId == item.id) Mint.copy(alpha = .12f) else Panel)
-                            .clickable { onLyricsTrackSelected(item.id) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(item.title, color = OnSurface, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(item.artist, color = Muted, fontSize = 10.sp)
-                            }
-                            Text(if (selectedLyricsTrackId == item.id) "Dipilih" else "Pilih", color = if (selectedLyricsTrackId == item.id) Mint else Muted, fontSize = 10.sp)
-                        }
-                    }
-                }
-                if (targetTrack != null) {
-                    Spacer(Modifier.height(10.dp))
-                    Text("LIRIK DARI METADATA", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Text(metadataStatus, color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                    if (metadataBusy) {
-                        Spacer(Modifier.height(6.dp))
-                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text("LIRIK MANUAL", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                if (targetTrack != null && lyricEditorVisible) {
+                    Spacer(Modifier.height(14.dp))
+                    Text("LIRIK: ${targetTrack.title}", color = Mint, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(targetTrack.artist, color = Muted, fontSize = 10.sp)
+                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(value = lyricsText, onValueChange = onLyricsTextChange,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 360.dp), minLines = 7, maxLines = 16,
-                        placeholder = { Text("Tempel atau ketik lirik di sini. Format [mm:ss.xx] didukung untuk lirik tersinkron.") }, colors = fieldColors())
-                    Text("Contoh: [00:12.00]Baris lirik pertama\\n[00:17.50]Baris lirik berikutnya.", color = Muted, fontSize = 10.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("SINKRONKAN LIRIK", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextButton(onClick = {
-                            val lines = lyricsText.lines().toMutableList()
-                            val nextLine = lines.indexOfFirst { it.isNotBlank() && !Regex("""^\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]""").containsMatchIn(it.trim()) }
-                            if (nextLine >= 0) {
-                                val time = player.currentPosition.coerceAtLeast(0L)
-                                val minutes = time / 60000L
-                                val seconds = (time % 60000L) / 1000L
-                                val hundredths = (time % 1000L) / 10L
-                                lines[nextLine] = "[${String.format(Locale.US, "%02d:%02d.%02d", minutes, seconds, hundredths)}] ${lines[nextLine].trim()}"
-                                onLyricsTextChange(lines.joinToString("\n"))
-                            }
-                        }) {
-                            Icon(Icons.Default.Sync, null, tint = Mint, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Tandai waktu", color = Mint, fontSize = 11.sp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp, max = 330.dp),
+                        minLines = 7, maxLines = 15,
+                        placeholder = { Text("Masukkan lirik. Untuk sinkron otomatis, gunakan satu baris per lirik dengan timestamp seperti [00:12.50] isi lirik.") },
+                        colors = fieldColors())
+                    Text("Contoh format:
+[00:12.00]Baris lirik pertama
+[00:17.50]Baris lirik kedua",
+                        color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { onLyricsTextChange("") }, modifier = Modifier.weight(1f)) {
+                            Text("Kosongkan")
+                        }
+                        Button(onClick = {
+                            onLyricsSave(selectedLyricsTrackId, lyricsText)
+                            lyricEditorVisible = false
+                        }, enabled = lyricsText.isNotBlank(), modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Simpan")
                         }
                     }
-                    Text("Putar lagu, lalu tekan Tandai waktu tepat saat baris lirik dinyanyikan. Aplikasi otomatis memberi timestamp pada baris berikutnya yang belum disinkronkan.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                    Text("KECEPATAN ANIMASI", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Slider(value = lyricScrollSpeed, onValueChange = onLyricScrollSpeedChange, valueRange = 0.5f..2.5f, modifier = Modifier.weight(1f))
-                        Text("${String.format(Locale.US, "%.1f", lyricScrollSpeed)}x", color = OnSurface, fontSize = 12.sp)
-                    }
-                    Text("Mengatur kelembutan animasi perpindahan teks, bukan tempo audio.", color = Muted, fontSize = 10.sp)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { onLyricsTextChange("") }) { Text("Kosongkan", color = Color(0xFFFF7777)) }
-                    }
+                    Text("Setelah disimpan, kolom editor ditutup. Pilih lagu ini lagi untuk mengubah liriknya.",
+                        color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
                 }
-                Spacer(Modifier.height(12.dp))
+
+                Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Tampilkan lirik di Now Playing", color = OnSurface, fontWeight = FontWeight.Bold)
-                        Text("Now Playing hanya membaca; pengeditan tetap di halaman ini.", color = Muted, fontSize = 11.sp)
+                        Text("Lirik yang sudah disimpan akan ditampilkan saat lagu diputar.", color = Muted, fontSize = 11.sp)
                     }
                     Switch(checked = lyricsEnabled, onCheckedChange = onLyricsEnabled)
                 }
