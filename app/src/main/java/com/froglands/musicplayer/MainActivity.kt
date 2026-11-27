@@ -235,6 +235,12 @@ private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k"
 data class Track(val id: Long, val title: String, val artist: String, val uri: Uri, val duration: Long, val album: String = "Unknown album", val albumArtist: String = "", val albumId: Long = -1L, val year: Int = 0, val trackNumber: Int = 0, val composer: String = "", val storagePath: String = "", val fileSize: Long = 0L, val dateAdded: Long = 0L, val dateModified: Long = 0L)
 
 private enum class Screen { LIBRARY, ONLINE, OFFLINE, PLAYER, EQUALIZER, SETTINGS }
+
+private enum class PlaybackDspMode(val title: String, val description: String) {
+    MEDIA3("Media3 • Neutral", "Playback standar Media3 tanpa Equalizer/BassBoost internal aplikasi."),
+    ANDROID_EFFECTS("Android Audio Effects", "Mengaktifkan Equalizer dan BassBoost Android pada sesi audio pemutar."),
+    EXTERNAL_DSP("External / Device DSP", "Menonaktifkan efek internal aplikasi agar pemrosesan OEM, headphone, atau DSP eksternal mengambil alih.")
+}
 private enum class LibrarySort(val label: String) { TITLE("Judul"), ARTIST("Artis"), ALBUM("Album"), DATE_ADDED("Tanggal ditambahkan"), DATE_MODIFIED("Tanggal diubah"), DURATION("Durasi"), YEAR("Tahun"), SIZE("Ukuran file") }
 private enum class SpectrumStyle(val title: String, val description: String) { WAVE("Wave", "Satu gelombang halus"), BARS("Bars", "Batang spektrum vertikal"), MIRROR("Mirror", "Batang tumbuh dari garis tengah"), CIRCULAR("Circular", "Spektrum radial penuh"), LINE("Line", "Kurva frekuensi tipis"), FILLED("Filled", "Area frekuensi terisi"), DOTS("Dots", "Partikel bulat mengikuti level"), POWERAMP("Poweramp", "Kolom LED bertingkat"), VU("VU Meter", "Dua meter analog dengan jarum"), MIRROR_WAVE("Twin Wave", "Dua kurva bergerak berlawanan"), SPECTRUM_3D("3D Spectrum", "Kolom perspektif berlapis"), ORBIT("Orbit", "Partikel mengitari cincin"), DIGITAL("Digital Matrix", "Grid LED bertingkat"), FIRE("Fire Bars", "Kolom dengan gradasi panas") }
 private enum class SeekBarStyle(val title: String, val description: String) { CLASSIC("Classic", "Track standar dengan thumb"), THIN("Thin Line", "Garis tipis minimalis"), ROUNDED("Rounded", "Track membulat modern"), CAPSULE("Capsule", "Progress tebal seperti pil"), GRADIENT("Gradient", "Warna aksen bergradasi"), WAVE("Wave", "Gelombang audio halus"), SEGMENTED("Segmented", "Garis bersegmen"), GLOW("Glow", "Aksen bercahaya"), DOTTED("Dotted", "Titik-titik progress"), DOUBLE("Double Line", "Dua garis bertumpuk"), RAINBOW("Rainbow", "Gradasi spektrum warna"), BLOCKS("Blocks", "Blok tebal modern"), NEEDLE("Needle", "Penunjuk posisi presisi"), GLASS("Glass", "Track kaca transparan"), DASHED("Dashed", "Garis putus-putus") }
@@ -460,6 +466,11 @@ private fun MusicPlayerApp(
         spectrumStyle = runCatching { SpectrumStyle.valueOf(preferences.getString("spectrum_style", "WAVE") ?: "WAVE") }.getOrDefault(SpectrumStyle.WAVE)
         seekBarStyle = runCatching { SeekBarStyle.valueOf(preferences.getString("seekbar_style", "ROUNDED") ?: "ROUNDED") }.getOrDefault(SeekBarStyle.ROUNDED)
     }
+    var playbackDspMode by remember {
+        mutableStateOf(runCatching {
+            PlaybackDspMode.valueOf(preferences.getString("playback_dsp_mode", PlaybackDspMode.ANDROID_EFFECTS.name) ?: PlaybackDspMode.ANDROID_EFFECTS.name)
+        }.getOrDefault(PlaybackDspMode.ANDROID_EFFECTS))
+    }
     var audioSessionId by remember { mutableIntStateOf(0) }
     var liveMetadata by remember { mutableStateOf<androidx.media3.common.MediaMetadata?>(null) }
     var spectrum by remember { mutableStateOf(List(28) { 0.025f }) }
@@ -633,10 +644,11 @@ private fun MusicPlayerApp(
                 val level = ((if (eqEnabled) baseDb else 0f) + subDb).times(100f).toInt().coerceIn(range[0].toInt(), range[1].toInt())
                 eq.setBandLevel(band.toShort(), level.toShort())
             }
-            eq.enabled = eqEnabled || (subEnabled && subGain > 0f)
+            val appEffectsEnabled = playbackDspMode == PlaybackDspMode.ANDROID_EFFECTS
+            eq.enabled = appEffectsEnabled && (eqEnabled || (subEnabled && subGain > 0f))
             bassEffect?.let {
                 it.setStrength(if (subEnabled) (subGain / 6f * 500f).toInt().coerceIn(0, 500).toShort() else 0)
-                it.enabled = subEnabled && subGain > 0f
+                it.enabled = appEffectsEnabled && subEnabled && subGain > 0f
             }
             eqStatus = "12 kontrol disesuaikan ke ${hardwareCount} band hardware perangkat."
         } catch (e: Exception) {
@@ -669,7 +681,7 @@ private fun MusicPlayerApp(
         }
     }
 
-    LaunchedEffect(eqEnabled, eqLevels, subEnabled, subGain, subFrequency, audioSessionId) { applyEqualizer() }
+    LaunchedEffect(eqEnabled, eqLevels, subEnabled, subGain, subFrequency, audioSessionId, playbackDspMode) { applyEqualizer() }
 
     Box(Modifier.fillMaxSize().background(Ink)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -863,7 +875,12 @@ private fun MusicPlayerApp(
                             preferences.edit().putString("visual_style", name).apply()
                         },
                         player = player,
-                        preferences = preferences
+                        preferences = preferences,
+                        playbackDspMode = playbackDspMode,
+                        onPlaybackDspModeChange = { mode ->
+                            playbackDspMode = mode
+                            preferences.edit().putString("playback_dsp_mode", mode.name).apply()
+                        }
                     )
                 }
             }
@@ -1560,7 +1577,7 @@ private fun SettingsScreen(
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
-    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, player: ExoPlayer, preferences: android.content.SharedPreferences
+    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, player: ExoPlayer, preferences: android.content.SharedPreferences, playbackDspMode: PlaybackDspMode, onPlaybackDspModeChange: (PlaybackDspMode) -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf("") }
     fun tx(key: String) = appText(key, selectedLanguage)
@@ -1811,6 +1828,36 @@ private fun SettingsScreen(
                     player.repeatMode = repeatMode
                     preferences.edit().putInt("repeat_mode", repeatMode).apply()
                 }
+                Text("PLAYBACK DSP", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text("Pilih jalur pemrosesan audio yang digunakan saat memutar musik.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(8.dp))
+                PlaybackDspMode.values().forEach { mode ->
+                    val active = playbackDspMode == mode
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (active) Mint.copy(alpha = .12f) else Color.White.copy(alpha = .035f))
+                            .border(1.dp, if (active) Mint.copy(alpha = .7f) else Color.White.copy(alpha = .10f), RoundedCornerShape(14.dp))
+                            .clickable { onPlaybackDspModeChange(mode) }
+                            .padding(13.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(mode.title, color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(mode.description, color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+                        }
+                        Icon(if (active) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = if (active) Mint else Muted)
+                    }
+                }
+                Text(
+                    when (playbackDspMode) {
+                        PlaybackDspMode.MEDIA3 -> "Mode aktif: efek EQ dan BassBoost internal aplikasi dimatikan. Mesin Media3 tetap menangani decoding dan playback."
+                        PlaybackDspMode.ANDROID_EFFECTS -> "Mode aktif: EQ 12-kontrol dan BassBoost aplikasi diproses melalui Android Audio Effects. Jumlah band dan kualitas mengikuti perangkat."
+                        PlaybackDspMode.EXTERNAL_DSP -> "Mode aktif: efek EQ/BassBoost aplikasi dimatikan. Efek sistem atau perangkat eksternal mungkin tetap aktif sesuai pengaturan Android/OEM."
+                    },
+                    color = Muted, fontSize = 10.sp, lineHeight = 15.sp
+                )
+                Spacer(Modifier.height(12.dp))
                 Text("Pengaturan mesin pemutar. EQ dan Bass Boost tetap berada di tab EQ.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(12.dp))
                 AudioSettingSwitch("Audio Focus", "Mengelola fokus audio saat aplikasi lain berbunyi.", focusEnabled) { focusEnabled = it }
