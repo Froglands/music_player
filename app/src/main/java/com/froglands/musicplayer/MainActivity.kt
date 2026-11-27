@@ -1236,7 +1236,9 @@ private fun FullPlayer(
         if (lyricsEnabled) {
             val timedLyrics = remember(lyricsText) { parseLrcLyrics(lyricsText) }
             val activeIndex = timedLyrics.indexOfLast { it.timeMs <= (position * duration).toLong() }
-            val currentLyric = timedLyrics.getOrNull(activeIndex)?.text
+            // Show the first timed line before its timestamp is reached (e.g. at 00:00),
+            // instead of incorrectly reporting that no lyrics exist after restarting a track.
+            val currentLyric = timedLyrics.getOrNull(activeIndex)?.text ?: timedLyrics.firstOrNull()?.text
             val plainLyric = lyricsText.takeIf { timedLyrics.isEmpty() && it.isNotBlank() }
             AnimatedContent(targetState = currentLyric ?: plainLyric?.lineSequence()?.firstOrNull().orEmpty(),
                 transitionSpec = { fadeIn(animationSpec = tween((220f / lyricScrollSpeed).toInt().coerceIn(100, 500))) togetherWith fadeOut(animationSpec = tween((180f / lyricScrollSpeed).toInt().coerceIn(80, 400))) },
