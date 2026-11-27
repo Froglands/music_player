@@ -1191,11 +1191,18 @@ private fun FullPlayer(
         Spacer(Modifier.height(12.dp))
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
             val coverSize = maxWidth.coerceAtMost(210.dp)
-            Box(Modifier.size(coverSize).clip(RoundedCornerShape(28.dp))
-                .background(Panel)
-                .border(1.dp, Color.White.copy(alpha = .20f), RoundedCornerShape(28.dp)).padding(9.dp)) {
-                AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri,
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(21.dp)))
+            Box(Modifier.size(coverSize)) {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp))
+                    .background(Panel)
+                    .border(1.dp, Color.White.copy(alpha = .20f), RoundedCornerShape(28.dp)).padding(9.dp)) {
+                    AlbumCover(uri = track?.let { if (it.albumId >= 0) Uri.parse("content://media/external/audio/albumart/${it.albumId}") else null } ?: metadata?.artworkUri,
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(21.dp)))
+                }
+                if (track != null || metadata != null) {
+                    IconButton(onClick = { showDetails = true }, modifier = Modifier.align(Alignment.TopEnd).offset(x = 46.dp, y = (-8).dp).size(38.dp)) {
+                        Icon(Icons.Default.Info, "Info lagu", tint = Mint, modifier = Modifier.size(22.dp))
+                    }
+                }
             }
         }
         Spacer(Modifier.height(10.dp))
