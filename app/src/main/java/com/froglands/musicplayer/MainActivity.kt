@@ -1835,14 +1835,14 @@ private fun SettingsScreen(
                         Text("SINKRONKAN LIRIK", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         TextButton(onClick = {
                             val lines = lyricsText.lines().toMutableList()
-                            val nextLine = lines.indexOfFirst { it.isNotBlank() && !Regex("""^\\[\\d{1,2}:\\d{2}(?:[.:]\\d{1,3})?\\]""").containsMatchIn(it.trim()) }
+                            val nextLine = lines.indexOfFirst { it.isNotBlank() && !Regex("""^\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]""").containsMatchIn(it.trim()) }
                             if (nextLine >= 0) {
                                 val time = player.currentPosition.coerceAtLeast(0L)
                                 val minutes = time / 60000L
                                 val seconds = (time % 60000L) / 1000L
                                 val hundredths = (time % 1000L) / 10L
                                 lines[nextLine] = "[${String.format(Locale.US, "%02d:%02d.%02d", minutes, seconds, hundredths)}] ${lines[nextLine].trim()}"
-                                onLyricsTextChange(lines.joinToString("\\n"))
+                                onLyricsTextChange(lines.joinToString("\n"))
                             }
                         }) {
                             Icon(Icons.Default.Sync, null, tint = Mint, modifier = Modifier.size(16.dp))
