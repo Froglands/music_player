@@ -1,6 +1,8 @@
 package com.froglands.musicplayer
 
 import android.annotation.SuppressLint
+import android.net.Uri
+import java.util.Locale
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -109,12 +111,34 @@ fun OnlineMediaScreen(
 }
 
 private fun extractYouTubeId(input: String): String? {
-    val value = input.trim()
-    val patterns = listOf(
-        Regex("""(?:youtube\\.com/watch\\?v=|youtu\\.be/|youtube\\.com/embed/|youtube\\.com/shorts/)([A-Za-z0-9_-]{11})"""),
-        Regex("""^([A-Za-z0-9_-]{11})$""")
-    )
-    return patterns.firstNotNullOfOrNull { it.find(value)?.groupValues?.getOrNull(1) }
+    val value = input.trim().trim('<', '>', '"', '\'')
+    if (value.isBlank()) return null
+
+    // Also accept a bare 11-character video ID.
+    if (Regex("^[A-Za-z0-9_-]{11}$").matches(value)) return value
+
+    // Normalize links pasted without a scheme, then parse host/path/query.
+    val normalized = if ("://" in value) value else "https://$value"
+    val uri = runCatching { Uri.parse(normalized) }.getOrNull() ?: return null
+    val host = uri.host?.lowercase(Locale.ROOT)?.removePrefix("www.") ?: return null
+
+    val candidate = when (host) {
+        "youtu.be" -> uri.pathSegments.firstOrNull()
+        "youtube.com", "m.youtube.com", "music.youtube.com" -> {
+            uri.getQueryParameter("v") ?: run {
+                val segments = uri.pathSegments
+                when (segments.firstOrNull()?.lowercase(Locale.ROOT)) {
+                    "embed", "shorts", "live", "v" -> segments.getOrNull(1)
+                    else -> null
+                }
+            }
+        }
+        "youtube-nocookie.com" -> uri.pathSegments
+            .takeIf { it.firstOrNull()?.equals("embed", ignoreCase = true) == true }
+            ?.getOrNull(1)
+        else -> null
+    }
+    return candidate?.takeIf { Regex("^[A-Za-z0-9_-]{11}$").matches(it) }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
