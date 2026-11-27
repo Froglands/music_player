@@ -1615,6 +1615,8 @@ private fun SettingsScreen(
                     }
                 }
                 groupTitle("PEMUTAR & AUDIO", "Kontrol pemutaran dan efek suara")
+                settingsCard(Icons.Default.Tune, "Audio & Playback", "Audio Focus • Gapless • Skip Silence • Playback Speed") { section = "audio" }
+                Spacer(Modifier.height(8.dp))
                 settingsCard(Icons.Default.GraphicEq, tx("visualizer"), "${selectedStyle.title} • ${SpectrumStyle.values().size} gaya spektrum") { section = "visualizer" }
                 Spacer(Modifier.height(8.dp))
                 settingsCard(Icons.Default.LinearScale, "Progress Bar", "${seekBarStyle.title} • ${SeekBarStyle.values().size} gaya tampilan") { section = "seekbar" }
@@ -1726,7 +1728,7 @@ private fun SettingsScreen(
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 240.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(tracks.filter { it.title.contains(lyricSearch, true) || it.artist.contains(lyricSearch, true) || it.album.contains(lyricSearch, true) }, key = { it.id }) { item ->
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(if (selectedLyricsTrackId == item.id) Mint.copy(alpha = .12f) else visualSurfaceBrush())
+                            .background(if (selectedLyricsTrackId == item.id) Mint.copy(alpha = .12f) else Panel)
                             .clickable { onLyricsTrackSelected(item.id) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(item.title, color = OnSurface, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
