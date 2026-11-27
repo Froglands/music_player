@@ -1817,6 +1817,7 @@ private fun SettingsScreen(
                 }
             }
             "lyrics" -> {
+                val context = LocalContext.current
                 Text("Pilih lagu dari koleksi, lalu tulis atau tempel lirik. Lirik disimpan per lagu dan otomatis muncul di Now Playing.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(12.dp))
                 var lyricSearch by rememberSaveable { mutableStateOf("") }
