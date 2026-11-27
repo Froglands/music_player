@@ -1831,12 +1831,32 @@ private fun SettingsScreen(
                         placeholder = { Text("Tempel atau ketik lirik di sini. Format [mm:ss.xx] didukung untuk lirik tersinkron.") }, colors = fieldColors())
                     Text("Contoh: [00:12.00]Baris lirik pertama\\n[00:17.50]Baris lirik berikutnya.", color = Muted, fontSize = 10.sp)
                     Spacer(Modifier.height(12.dp))
-                    Text("KECEPATAN ANIMASI LIRIK", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("SINKRONKAN LIRIK", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = {
+                            val lines = lyricsText.lines().toMutableList()
+                            val nextLine = lines.indexOfFirst { it.isNotBlank() && !Regex("""^\\[\\d{1,2}:\\d{2}(?:[.:]\\d{1,3})?\\]""").containsMatchIn(it.trim()) }
+                            if (nextLine >= 0) {
+                                val time = player.currentPosition.coerceAtLeast(0L)
+                                val minutes = time / 60000L
+                                val seconds = (time % 60000L) / 1000L
+                                val hundredths = (time % 1000L) / 10L
+                                lines[nextLine] = "[${String.format(Locale.US, "%02d:%02d.%02d", minutes, seconds, hundredths)}] ${lines[nextLine].trim()}"
+                                onLyricsTextChange(lines.joinToString("\\n"))
+                            }
+                        }) {
+                            Icon(Icons.Default.Sync, null, tint = Mint, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Tandai waktu", color = Mint, fontSize = 11.sp)
+                        }
+                    }
+                    Text("Putar lagu, lalu tekan Tandai waktu tepat saat baris lirik dinyanyikan. Aplikasi otomatis memberi timestamp pada baris berikutnya yang belum disinkronkan.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Text("KECEPATAN ANIMASI", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Slider(value = lyricScrollSpeed, onValueChange = onLyricScrollSpeedChange, valueRange = 0.5f..2.5f, modifier = Modifier.weight(1f))
                         Text("${String.format(Locale.US, "%.1f", lyricScrollSpeed)}x", color = OnSurface, fontSize = 12.sp)
                     }
-                    Text("Atur seberapa cepat pergantian baris lirik saat sinkron.", color = Muted, fontSize = 10.sp)
+                    Text("Mengatur kelembutan animasi perpindahan teks, bukan tempo audio.", color = Muted, fontSize = 10.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { onLyricsTextChange("") }) { Text("Kosongkan", color = Color(0xFFFF7777)) }
                     }
