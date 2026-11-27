@@ -1915,7 +1915,7 @@ private fun SettingsScreen(
                             }
                         }
                     }
-                    if (onlineLyricResults.isNotEmpty())
+                    if (onlineLyricResults.isNotEmpty()) {
                         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 190.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             items(onlineLyricResults.size) { index ->
                                 val result = onlineLyricResults[index]
