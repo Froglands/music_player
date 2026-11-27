@@ -423,6 +423,7 @@ private fun MusicPlayerApp(
     var libraryScrollIndex by rememberSaveable { mutableIntStateOf(0) }
     var libraryScrollOffset by rememberSaveable { mutableIntStateOf(0) }
     var lyricsEnabled by rememberSaveable { mutableStateOf(true) }
+    var lyricScrollSpeed by rememberSaveable { mutableFloatStateOf(1f) }
     var seekBarStyle by rememberSaveable { mutableStateOf(SeekBarStyle.ROUNDED) }
     var selectedTheme by rememberSaveable { mutableStateOf("Automatic") }
     val systemDarkTheme = isSystemInDarkTheme()
@@ -481,6 +482,7 @@ private fun MusicPlayerApp(
     var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
     LaunchedEffect(Unit) {
         lyricsEnabled = preferences.getBoolean("lyrics_enabled", true)
+        lyricScrollSpeed = preferences.getFloat("lyrics_scroll_speed", 1f).coerceIn(0.5f, 2.5f)
         selectedTheme = preferences.getString("app_theme", "Automatic") ?: "Automatic"
         activePalette.value = if (selectedTheme == "Automatic") { if (systemDarkTheme) AppPalettes.first() else AppPalettes.last() } else AppPalettes.firstOrNull { it.name == selectedTheme } ?: AppPalettes.first()
         masterVolume = preferences.getFloat("master_volume", 1f).coerceIn(0f, 1f)
@@ -852,7 +854,7 @@ private fun MusicPlayerApp(
                     Screen.PLAYER -> FullPlayer(
                         track = selected, player = player, playing = playing, spectrum = spectrum, spectrumStatus = spectrumStatus, spectrumStyle = spectrumStyle, metadata = liveMetadata,
                         hasRecordPermission = hasRecordPermission, requestRecordPermission = requestRecordPermission,
-                        lyricsEnabled = lyricsEnabled, lyricsText = lyricsText, seekBarStyle = seekBarStyle,
+                        lyricsEnabled = lyricsEnabled, lyricsText = lyricsText, seekBarStyle = seekBarStyle, lyricScrollSpeed = lyricScrollSpeed,
                         onLyricsChange = { lyricsText = it; preferences.edit().putString(lyricsKey, it).apply() },
                         onPrevious = {
                             val index = tracks.indexOfFirst { it.id == selected?.id }
@@ -874,6 +876,7 @@ private fun MusicPlayerApp(
                         lyricsEnabled = lyricsEnabled,
                         onLyricsEnabled = { enabled -> lyricsEnabled = enabled; preferences.edit().putBoolean("lyrics_enabled", enabled).apply() },
                         tracks = tracks, lyricsText = editorLyricsText, selectedLyricsTrackId = lyricsTargetId,
+                        lyricScrollSpeed = lyricScrollSpeed, onLyricScrollSpeedChange = { value -> lyricScrollSpeed = value; preferences.edit().putFloat("lyrics_scroll_speed", value).apply() },
                         onLyricsTrackSelected = { id ->
                             lyricsTargetId = id
                             editorLyricsText = preferences.getString("lyrics_${id}", "") ?: ""
@@ -1159,7 +1162,7 @@ private fun FullPlayer(
     track: Track?, player: ExoPlayer, playing: Boolean, spectrum: List<Float>, spectrumStatus: String, spectrumStyle: SpectrumStyle, metadata: androidx.media3.common.MediaMetadata?,
     hasRecordPermission: Boolean, requestRecordPermission: () -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit,
-    lyricsEnabled: Boolean, lyricsText: String, onLyricsChange: (String) -> Unit, seekBarStyle: SeekBarStyle
+    lyricsEnabled: Boolean, lyricsText: String, onLyricsChange: (String) -> Unit, seekBarStyle: SeekBarStyle, lyricScrollSpeed: Float
 ) {
     var position by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -1198,13 +1201,18 @@ private fun FullPlayer(
         Spacer(Modifier.height(10.dp))
         Text(track?.title ?: player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Belum ada lagu diputar", color = OnSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         Text(track?.artist ?: metadata?.artist?.toString() ?: "Online stream", color = Muted, fontSize = 14.sp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Text(listOfNotNull(track?.album?.takeIf { it != "Unknown album" } ?: metadata?.albumTitle?.toString(), track?.year?.takeIf { it > 0 }?.toString(), track?.trackNumber?.takeIf { it > 0 }?.let { "Track $it" }).joinToString(" • "), color = Muted, fontSize = 11.sp, maxLines = 1)
-            if (track != null || metadata != null) {
-                TextButton(onClick = { showDetails = true }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
-                    Icon(Icons.Default.Info, null, tint = Mint, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Info", color = Mint, fontSize = 11.sp)
+        if (lyricsEnabled) {
+            val timedLyrics = remember(lyricsText) { parseLrcLyrics(lyricsText) }
+            val activeIndex = timedLyrics.indexOfLast { it.timeMs <= (position * duration).toLong() }
+            val currentLyric = timedLyrics.getOrNull(activeIndex)?.text
+            val plainLyric = lyricsText.takeIf { timedLyrics.isEmpty() && it.isNotBlank() }
+            AnimatedContent(targetState = currentLyric ?: plainLyric?.lineSequence()?.firstOrNull().orEmpty(),
+                transitionSpec = { fadeIn(animationSpec = tween((220f / lyricScrollSpeed).toInt().coerceIn(100, 500))) togetherWith fadeOut(animationSpec = tween((180f / lyricScrollSpeed).toInt().coerceIn(80, 400))) },
+                label = "lyricLine") { line ->
+                Box(Modifier.fillMaxWidth().heightIn(min = 30.dp, max = 54.dp), contentAlignment = Alignment.Center) {
+                    Text(line.ifBlank { "Lirik belum tersedia" }, color = OnSurface.copy(alpha = if (line.isBlank()) .45f else .76f),
+                        fontSize = 14.sp, lineHeight = 19.sp, textAlign = TextAlign.Center, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -1232,40 +1240,7 @@ private fun FullPlayer(
             IconButton(onClick = onNext, modifier = Modifier.size(54.dp)) { Icon(Icons.Default.SkipNext, null, tint = OnSurface, modifier = Modifier.size(32.dp)) }
         }
         Spacer(Modifier.height(12.dp))
-        if (lyricsEnabled) {
-            Spacer(Modifier.height(12.dp))
-            Column(Modifier.fillMaxWidth().weight(1f, fill = false).clip(RoundedCornerShape(20.dp))
-                .background(Panel).border(1.dp, Muted.copy(alpha = .22f), RoundedCornerShape(20.dp)).padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lyrics, null, tint = Mint)
-                    Spacer(Modifier.width(8.dp))
-                    Text("LYRICS", color = OnSurface, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text("SINKRON", color = Muted, fontSize = 9.sp)
-                }
-                Spacer(Modifier.height(8.dp))
-                val timedLyrics = remember(lyricsText) { parseLrcLyrics(lyricsText) }
-                val activeIndex = timedLyrics.indexOfLast { it.timeMs <= (position * duration).toLong() }
-                if (timedLyrics.isNotEmpty()) {
-                    val lyricListState = rememberLazyListState()
-                    LaunchedEffect(activeIndex) { if (activeIndex >= 0) lyricListState.animateScrollToItem(activeIndex) }
-                    LazyColumn(state = lyricListState, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 190.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        items(timedLyrics.size) { index ->
-                            val line = timedLyrics[index]
-                            val active = index == activeIndex
-                            Text(line.text, color = if (active) Mint else Muted, fontSize = if (active) 17.sp else 13.sp,
-                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp))
-                        }
-                    }
-                } else if (lyricsText.isNotBlank()) {
-                    Text(lyricsText, color = OnSurface, fontSize = 13.sp, lineHeight = 21.sp,
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).verticalScroll(rememberScrollState()))
-                } else {
-                    Text("Belum ada lirik untuk lagu ini. Tambahkan melalui Pengaturan → Manajemen Lirik.", color = Muted, fontSize = 12.sp)
-                }
-            }
-        }
+
     }
 }
 
@@ -1612,6 +1587,7 @@ private fun SettingsScreen(
     spectrum: List<Float>, selectedStyle: SpectrumStyle, seekBarStyle: SeekBarStyle, onStyleSelected: (SpectrumStyle) -> Unit, onSeekBarStyleSelected: (SeekBarStyle) -> Unit,
     lyricsEnabled: Boolean, onLyricsEnabled: (Boolean) -> Unit,
     tracks: List<Track>, lyricsText: String, selectedLyricsTrackId: Long, onLyricsTrackSelected: (Long) -> Unit, onLyricsTextChange: (String) -> Unit,
+    lyricScrollSpeed: Float, onLyricScrollSpeedChange: (Float) -> Unit,
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
@@ -1811,7 +1787,7 @@ private fun SettingsScreen(
                     }
                 }
 
-                Text("Lirik hanya ditampilkan di Now Playing. Pilih lagu untuk mengedit, tempel lirik sendiri, atau gunakan lirik tertanam jika file memilikinya.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Text("Lirik ditampilkan mengikuti waktu lagu. Gunakan format timestamp [mm:ss.xx] di awal setiap baris untuk mengatur kapan lirik muncul.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(value = lyricSearch, onValueChange = { lyricSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     placeholder = { Text("Cari judul, artis, atau album") }, leadingIcon = { Icon(Icons.Default.Search, null) }, colors = fieldColors())
@@ -1843,7 +1819,14 @@ private fun SettingsScreen(
                     OutlinedTextField(value = lyricsText, onValueChange = onLyricsTextChange,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 360.dp), minLines = 7, maxLines = 16,
                         placeholder = { Text("Tempel atau ketik lirik di sini. Format [mm:ss.xx] didukung untuk lirik tersinkron.") }, colors = fieldColors())
-                    Text("Autosave aktif • Lirik tersimpan per lagu dan akan muncul di Now Playing.", color = Muted, fontSize = 10.sp)
+                    Text("Contoh: [00:12.00]Baris lirik pertama\\n[00:17.50]Baris lirik berikutnya.", color = Muted, fontSize = 10.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text("KECEPATAN ANIMASI LIRIK", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(value = lyricScrollSpeed, onValueChange = onLyricScrollSpeedChange, valueRange = 0.5f..2.5f, modifier = Modifier.weight(1f))
+                        Text("${String.format(Locale.US, "%.1f", lyricScrollSpeed)}x", color = OnSurface, fontSize = 12.sp)
+                    }
+                    Text("Atur seberapa cepat pergantian baris lirik saat sinkron.", color = Muted, fontSize = 10.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { onLyricsTextChange("") }) { Text("Kosongkan", color = Color(0xFFFF7777)) }
                     }
