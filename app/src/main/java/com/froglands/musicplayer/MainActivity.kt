@@ -31,6 +31,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -228,7 +229,7 @@ private val Ink get() = activePalette.value.background
 private val Panel get() = activePalette.value.panel
 private val Mint get() = activePalette.value.accent
 private val Muted get() = activePalette.value.muted
-private val OnSurface get() = if (activePalette.value.name == "Full Light") Color(0xFF151A23) else Color.White
+private val OnSurface get() = if (Ink.luminance() > 0.5f) Color(0xFF151A23) else Color(0xFFF5F7FA)
 private val TargetFrequencies = floatArrayOf(31f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 10000f, 12000f, 16000f)
 private val FrequencyLabels = listOf("31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "10k", "12k", "16k")
 
@@ -407,7 +408,10 @@ private fun MusicPlayerApp(
     var libraryScrollOffset by rememberSaveable { mutableIntStateOf(0) }
     var lyricsEnabled by rememberSaveable { mutableStateOf(true) }
     var seekBarStyle by rememberSaveable { mutableStateOf(SeekBarStyle.ROUNDED) }
-    var selectedTheme by rememberSaveable { mutableStateOf("Midnight") }
+    var selectedTheme by rememberSaveable { mutableStateOf("Automatic") }
+    val systemDarkTheme = isSystemInDarkTheme()
+    var masterVolume by rememberSaveable { mutableFloatStateOf(1f) }
+    var shuffleEnabled by rememberSaveable { mutableStateOf(false) }
     var selectedVisualStyle by rememberSaveable { mutableStateOf(VisualStyle.GLASS.name) }
     var selectedLanguage by rememberSaveable { mutableStateOf("auto") }
     val screenHistory = remember { mutableStateListOf<Screen>() }
@@ -461,10 +465,24 @@ private fun MusicPlayerApp(
     var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
     LaunchedEffect(Unit) {
         lyricsEnabled = preferences.getBoolean("lyrics_enabled", true)
-        selectedTheme = preferences.getString("app_theme", "Midnight") ?: "Midnight"
-        activePalette.value = AppPalettes.firstOrNull { it.name == selectedTheme } ?: AppPalettes.first()
+        selectedTheme = preferences.getString("app_theme", "Automatic") ?: "Automatic"
+        activePalette.value = if (selectedTheme == "Automatic") { if (systemDarkTheme) AppPalettes.first() else AppPalettes.last() } else AppPalettes.firstOrNull { it.name == selectedTheme } ?: AppPalettes.first()
+        masterVolume = preferences.getFloat("master_volume", 1f).coerceIn(0f, 1f)
+        shuffleEnabled = preferences.getBoolean("shuffle_enabled", false)
         spectrumStyle = runCatching { SpectrumStyle.valueOf(preferences.getString("spectrum_style", "WAVE") ?: "WAVE") }.getOrDefault(SpectrumStyle.WAVE)
         seekBarStyle = runCatching { SeekBarStyle.valueOf(preferences.getString("seekbar_style", "ROUNDED") ?: "ROUNDED") }.getOrDefault(SeekBarStyle.ROUNDED)
+    }
+    LaunchedEffect(selectedTheme, systemDarkTheme) {
+        if (selectedTheme == "Automatic") activePalette.value = if (systemDarkTheme) AppPalettes.first() else AppPalettes.last()
+    }
+    LaunchedEffect(masterVolume) {
+        val safeVolume = masterVolume.coerceIn(0f, 1f)
+        player.volume = safeVolume
+        preferences.edit().putFloat("master_volume", safeVolume).apply()
+    }
+    LaunchedEffect(player, shuffleEnabled) {
+        player.shuffleModeEnabled = shuffleEnabled
+        preferences.edit().putBoolean("shuffle_enabled", shuffleEnabled).apply()
     }
     var playbackDspMode by remember {
         mutableStateOf(runCatching {
@@ -854,7 +872,8 @@ private fun MusicPlayerApp(
                         selectedTheme = selectedTheme,
                         onThemeSelected = { name ->
                             selectedTheme = name
-                            activePalette.value = AppPalettes.first { it.name == name }
+                            if (name == "Automatic") activePalette.value = if (systemDarkTheme) AppPalettes.first() else AppPalettes.last()
+                            else activePalette.value = AppPalettes.first { it.name == name }
                             preferences.edit().putString("app_theme", name).apply()
                         },
                         selectedLanguage = selectedLanguage,
@@ -875,6 +894,8 @@ private fun MusicPlayerApp(
                             preferences.edit().putString("visual_style", name).apply()
                         },
                         player = player,
+                        masterVolume = masterVolume,
+                        onMasterVolumeChange = { masterVolume = it.coerceIn(0f, 1f) },
                         preferences = preferences,
                         playbackDspMode = playbackDspMode,
                         onPlaybackDspModeChange = { mode ->
@@ -927,7 +948,7 @@ private fun MusicPlayerApp(
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedBorderColor = Color.White.copy(alpha = .12f), focusedBorderColor = Mint,
-    unfocusedTextColor = Color.White, focusedTextColor = Color.White
+    unfocusedTextColor = OnSurface, focusedTextColor = OnSurface
 )
 
 @Composable
@@ -1577,7 +1598,7 @@ private fun SettingsScreen(
     audioQuality: String, videoQuality: String, onAudioQuality: (String) -> Unit, onVideoQuality: (String) -> Unit,
     selectedTheme: String, onThemeSelected: (String) -> Unit,
     selectedLanguage: String, onLanguageSelected: (String) -> Unit,
-    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, player: ExoPlayer, preferences: android.content.SharedPreferences, playbackDspMode: PlaybackDspMode, onPlaybackDspModeChange: (PlaybackDspMode) -> Unit
+    selectedVisualStyle: String, appVersion: String, onVisualStyleSelected: (String) -> Unit, player: ExoPlayer, masterVolume: Float, onMasterVolumeChange: (Float) -> Unit, preferences: android.content.SharedPreferences, playbackDspMode: PlaybackDspMode, onPlaybackDspModeChange: (PlaybackDspMode) -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf("") }
     fun tx(key: String) = appText(key, selectedLanguage)
@@ -1658,6 +1679,14 @@ private fun SettingsScreen(
             "theme" -> {
                 Text("Pilih salah satu dari ${AppPalettes.size} kombinasi warna. Perubahan langsung diterapkan.", color = Muted, fontSize = 12.sp)
                 Spacer(Modifier.height(14.dp))
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable { onThemeSelected("Automatic") }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Otomatis mengikuti sistem", color = OnSurface, fontWeight = FontWeight.Bold)
+                        Text(if (systemDarkTheme) "Perangkat sedang memakai mode gelap" else "Perangkat sedang memakai mode terang", color = Muted, fontSize = 11.sp)
+                    }
+                    Icon(if (selectedTheme == "Automatic") Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = Mint)
+                }
+                Spacer(Modifier.height(10.dp))
                 AppPalettes.chunked(2).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         row.forEach { palette ->
@@ -1784,6 +1813,7 @@ private fun SettingsScreen(
                 var appliedPitch by rememberSaveable { mutableFloatStateOf(1f) }
                 var playbackParameterStatus by remember { mutableStateOf("") }
                 var repeatMode by rememberSaveable { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
+                var shuffleEnabled by rememberSaveable { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
                     focusEnabled = preferences.getBoolean("audio_focus", true)
                     gaplessEnabled = preferences.getBoolean("gapless_playback", true)
@@ -1793,6 +1823,7 @@ private fun SettingsScreen(
                     appliedSpeed = speed
                     appliedPitch = pitch
                     repeatMode = preferences.getInt("repeat_mode", Player.REPEAT_MODE_OFF)
+                    shuffleEnabled = preferences.getBoolean("shuffle_enabled", false)
                 }
                 LaunchedEffect(focusEnabled) {
                     val attrs = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
@@ -1828,6 +1859,10 @@ private fun SettingsScreen(
                     player.repeatMode = repeatMode
                     preferences.edit().putInt("repeat_mode", repeatMode).apply()
                 }
+                LaunchedEffect(shuffleEnabled) {
+                    player.shuffleModeEnabled = shuffleEnabled
+                    preferences.edit().putBoolean("shuffle_enabled", shuffleEnabled).apply()
+                }
                 Text("PLAYBACK DSP", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                 Text("Pilih jalur pemrosesan audio yang digunakan saat memutar musik.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(8.dp))
@@ -1858,11 +1893,22 @@ private fun SettingsScreen(
                     color = Muted, fontSize = 10.sp, lineHeight = 15.sp
                 )
                 Spacer(Modifier.height(12.dp))
+                Text("MASTER VOLUME  ${"%.0f".format(masterVolume * 100f)}%", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { onMasterVolumeChange(if (masterVolume > 0f) 0f else 0.75f) }) {
+                        Icon(if (masterVolume <= 0f) Icons.Default.VolumeOff else Icons.Default.VolumeUp, null, tint = Mint)
+                    }
+                    Slider(value = masterVolume, onValueChange = onMasterVolumeChange, valueRange = 0f..1f, modifier = Modifier.weight(1f))
+                    Text("${(masterVolume * 100).toInt()}%", color = OnSurface, fontSize = 11.sp)
+                }
+                Text("Volume ini hanya mengatur output aplikasi, tidak mengubah volume sistem atau aplikasi lain.", color = Muted, fontSize = 10.sp)
+                Spacer(Modifier.height(10.dp))
                 Text("Pengaturan mesin pemutar. EQ dan Bass Boost tetap berada di tab EQ.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(12.dp))
                 AudioSettingSwitch("Audio Focus", "Mengelola fokus audio saat aplikasi lain berbunyi.", focusEnabled) { focusEnabled = it }
                 AudioSettingSwitch("Gapless Playback", "Mengurangi jeda antar-track dalam antrean.", gaplessEnabled) { gaplessEnabled = it }
                 AudioSettingSwitch("Skip Silence", "Melewati bagian hening pada format yang didukung decoder.", skipSilenceEnabled) { skipSilenceEnabled = it }
+                AudioSettingSwitch("Shuffle", "Mengacak urutan lagu dalam antrean pemutaran.", shuffleEnabled) { shuffleEnabled = it }
                 Spacer(Modifier.height(10.dp))
                 Text("PLAYBACK SPEED  " + "%.2f".format(speed) + "×", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Slider(
@@ -1899,7 +1945,7 @@ private fun SettingsScreen(
                         Icon(if (audioQuality == quality) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = if (audioQuality == quality) Mint else Muted)
                     }
                 }
-                Spacer(Modifier.height(14.dp)); Divider(color = Color.White.copy(alpha = .12f)); Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(14.dp)); Divider(color = Muted.copy(alpha = .28f)); Spacer(Modifier.height(14.dp))
                 Text("Kualitas video", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 listOf("360p", "480p", "720p", "1080p").forEach { quality ->
@@ -2061,7 +2107,7 @@ private fun EqualizerScreen(
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = OnSurface) }
             Text("AUDIO ENGINE", color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -2094,8 +2140,8 @@ private fun EqualizerScreen(
         Spacer(Modifier.height(14.dp))
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
-                .background(Brush.linearGradient(listOf(Color(0xAA263B52), Color(0x88202D43))))
-                .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(24.dp))
+                .background(Panel)
+                .border(1.dp, Muted.copy(alpha = .35f), RoundedCornerShape(24.dp))
                 .padding(vertical = 16.dp)
         ) {
             Row(
@@ -2147,7 +2193,7 @@ private fun VerticalEqFader(
     val fraction = ((value - minValue) / (maxValue - minValue)).coerceIn(0f, 1f)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val faderHeightPx = with(density) { 132.dp.toPx() }
-    val trackColor = if (enabled) Color.White.copy(alpha = .18f) else Color.White.copy(alpha = .08f)
+    val trackColor = if (enabled) Muted.copy(alpha = .48f) else Muted.copy(alpha = .22f)
     val activeColor = if (enabled) Mint else Muted.copy(alpha = .55f)
     val updateFromY: (Float, Float) -> Unit = { y, height ->
         val f = (1f - (y / height).coerceIn(0f, 1f))
@@ -2180,7 +2226,7 @@ private fun VerticalEqFader(
         drawRoundRect(activeColor.copy(alpha = .9f), androidx.compose.ui.geometry.Offset(centerX - trackW / 2, min(centerY, knobY)), androidx.compose.ui.geometry.Size(trackW, abs(centerY - knobY)), androidx.compose.ui.geometry.CornerRadius(trackW, trackW))
         drawCircle(activeColor.copy(alpha = .12f), radius = 15.dp.toPx(), center = androidx.compose.ui.geometry.Offset(centerX, knobY))
         drawRoundRect(activeColor, androidx.compose.ui.geometry.Offset(centerX - 11.dp.toPx(), knobY - 7.dp.toPx()), androidx.compose.ui.geometry.Size(22.dp.toPx(), 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(7.dp.toPx(), 7.dp.toPx()))
-        drawCircle(Color.White.copy(alpha = if (enabled) .8f else .35f), radius = 2.dp.toPx(), center = androidx.compose.ui.geometry.Offset(centerX, knobY))
+        drawCircle(OnSurface.copy(alpha = if (enabled) .8f else .35f), radius = 2.dp.toPx(), center = androidx.compose.ui.geometry.Offset(centerX, knobY))
         drawLine(Color.White.copy(alpha = .22f), androidx.compose.ui.geometry.Offset(centerX - 9.dp.toPx(), centerY), androidx.compose.ui.geometry.Offset(centerX + 9.dp.toPx(), centerY), strokeWidth = 1.dp.toPx())
     }
 }
