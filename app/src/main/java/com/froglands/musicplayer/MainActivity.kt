@@ -93,55 +93,17 @@ import kotlin.math.*
 
 
 
-private data class LyricsSearchResult(val trackName: String, val artistName: String, val albumName: String, val duration: Double, val plainLyrics: String, val syncedLyrics: String)
-
-private suspend fun searchOnlineLyrics(query: String): List<LyricsSearchResult> = withContext(Dispatchers.IO) {
-    val encoded = java.net.URLEncoder.encode(query.trim(), "UTF-8")
-    val connection = (URL("https://lrclib.net/api/search?q=$encoded").openConnection() as HttpURLConnection).apply {
-        connectTimeout = 10000
-        readTimeout = 12000
-        requestMethod = "GET"
-        setRequestProperty("User-Agent", "Froglands-MusicPlayer/1.0")
-        setRequestProperty("Accept", "application/json")
+private suspend fun readEmbeddedLyrics(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
+    val retriever = android.media.MediaMetadataRetriever()
+    try {
+        retriever.setDataSource(context, uri)
+        retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_LYRICS)
+            ?.trim()?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    } finally {
+        runCatching { retriever.release() }
     }
-    try {
-        if (connection.responseCode !in 200..299) throw IllegalStateException("Pencarian lirik gagal (HTTP ${connection.responseCode}).")
-        val array = org.json.JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
-        (0 until array.length()).mapNotNull { i ->
-            val item = array.optJSONObject(i) ?: return@mapNotNull null
-            val plain = item.optString("plainLyrics").takeUnless { it == "null" } ?: ""
-            val synced = item.optString("syncedLyrics").takeUnless { it == "null" } ?: ""
-            if (plain.isBlank() && synced.isBlank()) null else LyricsSearchResult(
-                item.optString("trackName"), item.optString("artistName"), item.optString("albumName"),
-                item.optDouble("duration", 0.0), plain, synced
-            )
-        }
-    } finally { connection.disconnect() }
-}
-
-private data class GoogleLyricsResult(val title: String, val link: String, val snippet: String)
-
-private suspend fun searchGoogleLyrics(query: String, apiKey: String, engineId: String): List<GoogleLyricsResult> = withContext(Dispatchers.IO) {
-    require(apiKey.isNotBlank() && engineId.isNotBlank()) { "Isi Google API Key dan Search Engine ID (cx) terlebih dahulu." }
-    val encodedQuery = java.net.URLEncoder.encode("$query lyrics", "UTF-8")
-    val encodedKey = java.net.URLEncoder.encode(apiKey.trim(), "UTF-8")
-    val encodedCx = java.net.URLEncoder.encode(engineId.trim(), "UTF-8")
-    val url = URL("https://www.googleapis.com/customsearch/v1?key=$encodedKey&cx=$encodedCx&q=$encodedQuery&num=10")
-    val connection = (url.openConnection() as HttpURLConnection).apply { connectTimeout = 10000; readTimeout = 12000; requestMethod = "GET"; setRequestProperty("Accept", "application/json") }
-    try {
-        val code = connection.responseCode
-        val body = (if (code in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-        if (code !in 200..299) {
-            val detail = runCatching { JSONObject(body).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
-            throw IllegalStateException("Google Search API HTTP $code" + if (detail.isNotBlank()) ": $detail" else "")
-        }
-        val items = JSONObject(body).optJSONArray("items") ?: return@withContext emptyList()
-        (0 until items.length()).mapNotNull { i ->
-            val item = items.optJSONObject(i) ?: return@mapNotNull null
-            val link = item.optString("link")
-            if (!link.startsWith("https://") && !link.startsWith("http://")) null else GoogleLyricsResult(item.optString("title"), link, item.optString("snippet"))
-        }
-    } finally { connection.disconnect() }
 }
 
 private data class AppUpdateInfo(val version: String, val notes: String, val apkUrl: String)
@@ -1818,42 +1780,43 @@ private fun SettingsScreen(
             }
             "lyrics" -> {
                 val context = LocalContext.current
-                Text("Pilih lagu dari koleksi, lalu tulis atau tempel lirik. Lirik disimpan per lagu dan otomatis muncul di Now Playing.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
-                Spacer(Modifier.height(12.dp))
                 var lyricSearch by rememberSaveable { mutableStateOf("") }
-                var onlineLyricResults by remember { mutableStateOf<List<LyricsSearchResult>>(emptyList()) }
-                var lyricSearchBusy by remember { mutableStateOf(false) }
-                var lyricSearchMessage by remember { mutableStateOf("") }
-                var googleApiKey by remember { mutableStateOf(preferences.getString("google_search_api_key", "") ?: "") }
-                var googleCx by remember { mutableStateOf(preferences.getString("google_search_cx", "") ?: "") }
-                var googleResults by remember { mutableStateOf<List<GoogleLyricsResult>>(emptyList()) }
-                var googleBusy by remember { mutableStateOf(false) }
-                var googleMessage by remember { mutableStateOf("") }
+                var metadataStatus by remember { mutableStateOf("Pilih lagu untuk memeriksa lirik di metadata file.") }
+                var metadataBusy by remember { mutableStateOf(false) }
                 val lyricScope = rememberCoroutineScope()
                 val targetTrack = tracks.firstOrNull { it.id == selectedLyricsTrackId }
-                fun searchLyricsForTrack(track: Track) {
-                    lyricSearchBusy = true
-                    lyricSearchMessage = "Mencari lirik untuk ${track.title}..."
-                    onlineLyricResults = emptyList()
-                    lyricScope.launch {
-                        try {
-                            val results = searchOnlineLyrics("${track.title} ${track.artist}")
-                            onlineLyricResults = results
-                            lyricSearchMessage = if (results.isEmpty()) "Lirik tidak ditemukan. Coba cari dengan judul atau artis yang lebih tepat." else "${results.size} hasil ditemukan. Pilih yang paling sesuai."
-                        } catch (error: Exception) {
-                            lyricSearchMessage = error.message ?: "Tidak dapat mencari lirik. Periksa koneksi internet."
-                        } finally { lyricSearchBusy = false }
+
+                LaunchedEffect(selectedLyricsTrackId) {
+                    val track = targetTrack
+                    if (track == null) {
+                        metadataStatus = "Pilih lagu. Kamu juga bisa menempelkan lirik secara manual."
+                    } else {
+                        val savedLyrics = preferences.getString("lyrics_${track.id}", "").orEmpty()
+                        if (savedLyrics.isNotBlank()) {
+                            metadataStatus = "Lirik manual sudah tersimpan untuk lagu ini."
+                        } else {
+                            metadataBusy = true
+                            metadataStatus = "Memeriksa metadata audio..."
+                            val embedded = readEmbeddedLyrics(context, track.uri)
+                            if (!embedded.isNullOrBlank()) {
+                                onLyricsTrackSelected(track.id)
+                                onLyricsTextChange(embedded)
+                                metadataStatus = "Lirik ditemukan di metadata file dan otomatis dimasukkan."
+                            } else {
+                                metadataStatus = "Tidak ada lirik di metadata file. Tempel lirik secara manual di bawah."
+                            }
+                            metadataBusy = false
+                        }
                     }
                 }
-                LaunchedEffect(selectedLyricsTrackId) {
-                    if (targetTrack != null) searchLyricsForTrack(targetTrack)
-                    else { onlineLyricResults = emptyList(); lyricSearchMessage = "Pilih lagu untuk mencari lirik otomatis." }
-                }
+
+                Text("Lirik hanya ditampilkan di Now Playing. Pilih lagu untuk mengedit, tempel lirik sendiri, atau gunakan lirik tertanam jika file memilikinya.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(value = lyricSearch, onValueChange = { lyricSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     placeholder = { Text("Cari judul, artis, atau album") }, leadingIcon = { Icon(Icons.Default.Search, null) }, colors = fieldColors())
                 Spacer(Modifier.height(8.dp))
                 Text(if (targetTrack == null) "PILIH LAGU" else "EDIT: ${targetTrack.title}", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 240.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 220.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(tracks.filter { it.title.contains(lyricSearch, true) || it.artist.contains(lyricSearch, true) || it.album.contains(lyricSearch, true) }, key = { it.id }) { item ->
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                             .background(if (selectedLyricsTrackId == item.id) Mint.copy(alpha = .12f) else Panel)
@@ -1868,77 +1831,18 @@ private fun SettingsScreen(
                 }
                 if (targetTrack != null) {
                     Spacer(Modifier.height(10.dp))
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("CARI LIRIK OTOMATIS", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text("Sumber: LRCLIB • hasil dipilih manual sebelum disimpan", color = Muted, fontSize = 10.sp)
-                        }
-                        Button(onClick = { searchLyricsForTrack(targetTrack) }, enabled = !lyricSearchBusy) {
-                            if (lyricSearchBusy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                            else Icon(Icons.Default.Search, null)
-                            Spacer(Modifier.width(6.dp))
-                            Text(if (lyricSearchBusy) "Mencari" else "Cari lirik")
-                        }
-                    }
-                    if (lyricSearchMessage.isNotBlank()) {
+                    Text("LIRIK DARI METADATA", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(metadataStatus, color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    if (metadataBusy) {
                         Spacer(Modifier.height(6.dp))
-                        Text(lyricSearchMessage, color = Muted, fontSize = 10.sp)
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
                     }
-                    Spacer(Modifier.height(14.dp))
-                    Text("GOOGLE SEARCH API", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Text("Masukkan kredensial Google Programmable Search. Disimpan hanya di perangkat ini.", color = Muted, fontSize = 10.sp)
-                    OutlinedTextField(value = googleApiKey, onValueChange = { googleApiKey = it; preferences.edit().putString("google_search_api_key", it).apply() }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Google API Key") }, colors = fieldColors())
-                    OutlinedTextField(value = googleCx, onValueChange = { googleCx = it; preferences.edit().putString("google_search_cx", it).apply() }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search Engine ID (cx)") }, colors = fieldColors())
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        Button(onClick = {
-                            googleBusy = true; googleMessage = "Mencari di Google..."; googleResults = emptyList()
-                            lyricScope.launch {
-                                try {
-                                    googleResults = searchGoogleLyrics(targetTrack.title + " " + targetTrack.artist, googleApiKey, googleCx)
-                                    googleMessage = if (googleResults.isEmpty()) "Google tidak menemukan hasil." else "${googleResults.size} hasil Google ditemukan."
-                                } catch (e: Exception) { googleMessage = e.message ?: "Pencarian Google gagal." }
-                                finally { googleBusy = false }
-                            }
-                        }, enabled = !googleBusy && targetTrack != null) {
-                            if (googleBusy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Icon(Icons.Default.Public, null)
-                            Spacer(Modifier.width(6.dp)); Text(if (googleBusy) "Mencari..." else "Cari lewat Google")
-                        }
-                    }
-                    if (googleMessage.isNotBlank()) Text(googleMessage, color = Muted, fontSize = 10.sp)
-                    googleResults.forEach { result ->
-                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Panel).padding(10.dp)) {
-                            Text(result.title, color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                            Text(result.snippet, color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                            Text(result.link, color = Mint, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.link))) } }) { Text("Buka sumber") }
-                                TextButton(onClick = { onLyricsTextChange((lyricsText + "\n\n" + result.snippet).trim()); googleMessage = "Cuplikan ditambahkan. Ini belum tentu lirik lengkap." }) { Text("Pakai cuplikan") }
-                            }
-                        }
-                    }
-                    if (onlineLyricResults.isNotEmpty()) {
-                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 190.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            items(onlineLyricResults.size) { index ->
-                                val result = onlineLyricResults[index]
-                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Panel)
-                                    .clickable {
-                                        onLyricsTextChange(result.syncedLyrics.ifBlank { result.plainLyrics })
-                                        lyricSearchMessage = "Lirik dipasang. Periksa kecocokan sebelum meninggalkan halaman."
-                                        onlineLyricResults = emptyList()
-                                    }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(result.trackName, color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(result.artistName + if (result.albumName.isNotBlank()) " • ${result.albumName}" else "", color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                    Text(if (result.syncedLyrics.isNotBlank()) "LRC" else "TEXT", color = Mint, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("LIRIK MANUAL", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     OutlinedTextField(value = lyricsText, onValueChange = onLyricsTextChange,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 320.dp), minLines = 6, maxLines = 14,
-                        placeholder = { Text("Tempel lirik biasa atau format LRC dengan timestamp…") }, colors = fieldColors())
-                    Text("Autosave aktif • Format [mm:ss.xx] menyelaraskan lirik dengan waktu lagu.", color = Muted, fontSize = 10.sp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 360.dp), minLines = 7, maxLines = 16,
+                        placeholder = { Text("Tempel atau ketik lirik di sini. Format [mm:ss.xx] didukung untuk lirik tersinkron.") }, colors = fieldColors())
+                    Text("Autosave aktif • Lirik tersimpan per lagu dan akan muncul di Now Playing.", color = Muted, fontSize = 10.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { onLyricsTextChange("") }) { Text("Kosongkan", color = Color(0xFFFF7777)) }
                     }
