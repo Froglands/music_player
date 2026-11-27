@@ -1814,6 +1814,10 @@ private fun SettingsScreen(
                         } finally { lyricSearchBusy = false }
                     }
                 }
+                LaunchedEffect(selectedLyricsTrackId) {
+                    if (targetTrack != null) searchLyricsForTrack(targetTrack)
+                    else { onlineLyricResults = emptyList(); lyricSearchMessage = "Pilih lagu untuk mencari lirik otomatis." }
+                }
                 OutlinedTextField(value = lyricSearch, onValueChange = { lyricSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     placeholder = { Text("Cari judul, artis, atau album") }, leadingIcon = { Icon(Icons.Default.Search, null) }, colors = fieldColors())
                 Spacer(Modifier.height(8.dp))
