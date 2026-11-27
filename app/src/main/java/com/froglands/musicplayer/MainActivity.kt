@@ -481,7 +481,7 @@ private fun MusicPlayerApp(
     }
     val lyricsKey = selected?.let { "lyrics_${it.id}" } ?: player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { "lyrics_$it" } ?: "lyrics_empty"
     LaunchedEffect(lyricsKey) { lyricsText = preferences.getString(lyricsKey, "") ?: "" }
-    LaunchedEffect(lyricsTargetId, tracks) { if (lyricsTargetId > 0L) lyricsText = preferences.getString("lyrics_$lyricsTargetId", "") ?: "" }
+    LaunchedEffect(lyricsTargetId, tracks) { if (lyricsTargetId > 0L) editorLyricsText = preferences.getString("lyrics_$lyricsTargetId", "") ?: "" }
     var spectrumStyle by remember { mutableStateOf(SpectrumStyle.WAVE) }
     LaunchedEffect(Unit) {
         lyricsEnabled = preferences.getBoolean("lyrics_enabled", true)
@@ -1150,13 +1150,24 @@ private fun MusicSeekBar(
 
 private data class LrcLine(val timeMs: Long, val text: String)
 private fun parseLrcLyrics(source: String): List<LrcLine> {
-    val pattern = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\](.*)""")
-    return source.lineSequence().mapNotNull { line ->
-        val match = pattern.matchEntire(line.trim()) ?: return@mapNotNull null
-        val minutes = match.groupValues[1].toLongOrNull() ?: 0L
-        val seconds = match.groupValues[2].toLongOrNull() ?: 0L
-        val fraction = match.groupValues[3].padEnd(3, '0').take(3).toLongOrNull() ?: 0L
-        LrcLine(minutes * 60_000L + seconds * 1_000L + fraction, match.groupValues[4].trim())
+    val pattern = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]""")
+    return source.removePrefix("\uFEFF").lineSequence().flatMap { rawLine ->
+        val line = rawLine.trim()
+        val matches = pattern.findAll(line).toList()
+        if (matches.isEmpty()) return@flatMap emptySequence()
+        val lyricText = line.substring(matches.last().range.last + 1).trim()
+        if (lyricText.isBlank()) return@flatMap emptySequence()
+        matches.asSequence().map { match ->
+            val minutes = match.groupValues[1].toLongOrNull() ?: 0L
+            val seconds = match.groupValues[2].toLongOrNull() ?: 0L
+            val rawFraction = match.groupValues[3]
+            val fractionMs = when (rawFraction.length) {
+                1 -> (rawFraction.toLongOrNull() ?: 0L) * 100L
+                2 -> (rawFraction.toLongOrNull() ?: 0L) * 10L
+                else -> rawFraction.take(3).toLongOrNull() ?: 0L
+            }
+            LrcLine(minutes * 60_000L + seconds * 1_000L + fractionMs, lyricText)
+        }
     }.sortedBy { it.timeMs }.toList()
 }
 
