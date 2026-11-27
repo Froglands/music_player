@@ -119,6 +119,31 @@ private suspend fun searchOnlineLyrics(query: String): List<LyricsSearchResult> 
     } finally { connection.disconnect() }
 }
 
+private data class GoogleLyricsResult(val title: String, val link: String, val snippet: String)
+
+private suspend fun searchGoogleLyrics(query: String, apiKey: String, engineId: String): List<GoogleLyricsResult> = withContext(Dispatchers.IO) {
+    require(apiKey.isNotBlank() && engineId.isNotBlank()) { "Isi Google API Key dan Search Engine ID (cx) terlebih dahulu." }
+    val encodedQuery = java.net.URLEncoder.encode("$query lyrics", "UTF-8")
+    val encodedKey = java.net.URLEncoder.encode(apiKey.trim(), "UTF-8")
+    val encodedCx = java.net.URLEncoder.encode(engineId.trim(), "UTF-8")
+    val url = URL("https://www.googleapis.com/customsearch/v1?key=$encodedKey&cx=$encodedCx&q=$encodedQuery&num=10")
+    val connection = (url.openConnection() as HttpURLConnection).apply { connectTimeout = 10000; readTimeout = 12000; requestMethod = "GET"; setRequestProperty("Accept", "application/json") }
+    try {
+        val code = connection.responseCode
+        val body = (if (code in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+        if (code !in 200..299) {
+            val detail = runCatching { JSONObject(body).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
+            throw IllegalStateException("Google Search API HTTP $code" + if (detail.isNotBlank()) ": $detail" else "")
+        }
+        val items = JSONObject(body).optJSONArray("items") ?: return@withContext emptyList()
+        (0 until items.length()).mapNotNull { i ->
+            val item = items.optJSONObject(i) ?: return@mapNotNull null
+            val link = item.optString("link")
+            if (!link.startsWith("https://") && !link.startsWith("http://")) null else GoogleLyricsResult(item.optString("title"), link, item.optString("snippet"))
+        }
+    } finally { connection.disconnect() }
+}
+
 private data class AppUpdateInfo(val version: String, val notes: String, val apkUrl: String)
 
 private suspend fun fetchLatestAppUpdate(currentVersion: String): AppUpdateInfo? = withContext(Dispatchers.IO) {
@@ -1798,6 +1823,11 @@ private fun SettingsScreen(
                 var onlineLyricResults by remember { mutableStateOf<List<LyricsSearchResult>>(emptyList()) }
                 var lyricSearchBusy by remember { mutableStateOf(false) }
                 var lyricSearchMessage by remember { mutableStateOf("") }
+                var googleApiKey by remember { mutableStateOf(preferences.getString("google_search_api_key", "") ?: "") }
+                var googleCx by remember { mutableStateOf(preferences.getString("google_search_cx", "") ?: "") }
+                var googleResults by remember { mutableStateOf<List<GoogleLyricsResult>>(emptyList()) }
+                var googleBusy by remember { mutableStateOf(false) }
+                var googleMessage by remember { mutableStateOf("") }
                 val lyricScope = rememberCoroutineScope()
                 val targetTrack = tracks.firstOrNull { it.id == selectedLyricsTrackId }
                 fun searchLyricsForTrack(track: Track) {
@@ -1853,7 +1883,39 @@ private fun SettingsScreen(
                         Spacer(Modifier.height(6.dp))
                         Text(lyricSearchMessage, color = Muted, fontSize = 10.sp)
                     }
-                    if (onlineLyricResults.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Text("GOOGLE SEARCH API", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Masukkan kredensial Google Programmable Search. Disimpan hanya di perangkat ini.", color = Muted, fontSize = 10.sp)
+                    OutlinedTextField(value = googleApiKey, onValueChange = { googleApiKey = it; preferences.edit().putString("google_search_api_key", it).apply() }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Google API Key") }, colors = fieldColors())
+                    OutlinedTextField(value = googleCx, onValueChange = { googleCx = it; preferences.edit().putString("google_search_cx", it).apply() }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search Engine ID (cx)") }, colors = fieldColors())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Button(onClick = {
+                            googleBusy = true; googleMessage = "Mencari di Google..."; googleResults = emptyList()
+                            lyricScope.launch {
+                                try {
+                                    googleResults = searchGoogleLyrics(targetTrack.title + " " + targetTrack.artist, googleApiKey, googleCx)
+                                    googleMessage = if (googleResults.isEmpty()) "Google tidak menemukan hasil." else "${googleResults.size} hasil Google ditemukan."
+                                } catch (e: Exception) { googleMessage = e.message ?: "Pencarian Google gagal." }
+                                finally { googleBusy = false }
+                            }
+                        }, enabled = !googleBusy && targetTrack != null) {
+                            if (googleBusy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Icon(Icons.Default.Public, null)
+                            Spacer(Modifier.width(6.dp)); Text(if (googleBusy) "Mencari..." else "Cari lewat Google")
+                        }
+                    }
+                    if (googleMessage.isNotBlank()) Text(googleMessage, color = Muted, fontSize = 10.sp)
+                    googleResults.forEach { result ->
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Panel).padding(10.dp)) {
+                            Text(result.title, color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Text(result.snippet, color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text(result.link, color = Mint, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.link))) } }) { Text("Buka sumber") }
+                                TextButton(onClick = { onLyricsTextChange((lyricsText + "\n\n" + result.snippet).trim()); googleMessage = "Cuplikan ditambahkan. Ini belum tentu lirik lengkap." }) { Text("Pakai cuplikan") }
+                            }
+                        }
+                    }
+                    if (onlineLyricResults.isNotEmpty())
                         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 190.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             items(onlineLyricResults.size) { index ->
                                 val result = onlineLyricResults[index]
