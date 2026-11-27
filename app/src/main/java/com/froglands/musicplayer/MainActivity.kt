@@ -1830,9 +1830,9 @@ private fun SettingsScreen(
                         minLines = 7, maxLines = 15,
                         placeholder = { Text("Masukkan lirik. Untuk sinkron otomatis, gunakan satu baris per lirik dengan timestamp seperti [00:12.50] isi lirik.") },
                         colors = fieldColors())
-                    Text("Contoh format:
+                    Text("""Contoh format:
 [00:12.00]Baris lirik pertama
-[00:17.50]Baris lirik kedua",
+[00:17.50]Baris lirik kedua""",
                         color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     Spacer(Modifier.height(10.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
