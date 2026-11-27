@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -1682,7 +1683,7 @@ private fun SettingsScreen(
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable { onThemeSelected("Automatic") }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Otomatis mengikuti sistem", color = OnSurface, fontWeight = FontWeight.Bold)
-                        Text(if (systemDarkTheme) "Perangkat sedang memakai mode gelap" else "Perangkat sedang memakai mode terang", color = Muted, fontSize = 11.sp)
+                        Text(if (isSystemInDarkTheme()) "Perangkat sedang memakai mode gelap" else "Perangkat sedang memakai mode terang", color = Muted, fontSize = 11.sp)
                     }
                     Icon(if (selectedTheme == "Automatic") Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = Mint)
                 }
