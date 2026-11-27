@@ -97,8 +97,9 @@ private suspend fun readEmbeddedLyrics(context: Context, uri: Uri): String? = wi
     val retriever = android.media.MediaMetadataRetriever()
     try {
         retriever.setDataSource(context, uri)
-        retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_LYRICS)
-            ?.trim()?.takeIf { it.isNotBlank() }
+        // Android MediaMetadataRetriever has no public lyrics metadata key.
+        // Embedded lyrics are handled as unavailable; manual per-track lyrics remain supported.
+        null
     } catch (_: Exception) {
         null
     } finally {
